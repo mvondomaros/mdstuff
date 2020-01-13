@@ -1,0 +1,2 @@
+class MDStuffError(Exception):
+    pass
