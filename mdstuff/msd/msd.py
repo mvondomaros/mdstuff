@@ -18,6 +18,7 @@ def single_particle_msd(
     :param maxlen: optional, the maximum number of trajectory steps for which the MSD will be evaluated
     :return: a (time, MSD) tuple of numpy arrays
     """
+    # FIXME: DCDs might overlap.
     # Set up the universe and select atoms.
     u = mda.Universe(psf, *dcds)
     s = u.select_atoms(selection)
