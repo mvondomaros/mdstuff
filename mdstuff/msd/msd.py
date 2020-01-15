@@ -26,7 +26,7 @@ def single_particle_msd(
 
     # Determine the number of trajectory time steps (maxlen) if it is not given (half the trajectory size).
     if maxlen is None:
-        maxlen = len(u.trajectory - skip) // 2
+        maxlen = (len(u.trajectory) - 2) // 2
 
     # Preallocate arrays.
     time = np.arange(maxlen) * u.trajectory[0].dt
