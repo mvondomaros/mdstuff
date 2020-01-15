@@ -7,7 +7,7 @@ import tqdm
 
 
 def single_particle_msd(
-    psf: str, dcds: Sequence[str], selection: str, maxlen: int = None
+    psf: str, dcds: Sequence[str], selection: str, maxlen: int = None, skip: int = 0
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute the mean squared displacement of a single particle.
@@ -16,6 +16,7 @@ def single_particle_msd(
     :param dcds: a sequence of dcd files
     :param selection: the particle selection string
     :param maxlen: optional, the maximum number of trajectory steps for which the MSD will be evaluated
+    :param skip: optional, skip this number of trajectory steps before starting the computation
     :return: a (time, MSD) tuple of numpy arrays
     """
     # FIXME: DCDs might overlap.
@@ -25,7 +26,7 @@ def single_particle_msd(
 
     # Determine the number of trajectory time steps (maxlen) if it is not given (half the trajectory size).
     if maxlen is None:
-        maxlen = len(u.trajectory) // 2
+        maxlen = len(u.trajectory - skip) // 2
 
     # Preallocate arrays.
     time = np.arange(maxlen) * u.trajectory[0].dt
@@ -35,7 +36,7 @@ def single_particle_msd(
     x0 = deque(maxlen=maxlen)
 
     # Loop over each time step and sum up the squared displacements to all relevant previous time steps.
-    for ts in tqdm.tqdm(u.trajectory):
+    for ts in tqdm.tqdm(u.trajectory[skip:]):
         x = s.atoms.center_of_mass()
         x0.appendleft(x)
         squared_displacements = np.sum((x - x0) ** 2, axis=-1)
