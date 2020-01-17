@@ -5,7 +5,6 @@ import numpy as np
 import tqdm
 
 from mdstuff.core.errors import MDStuffError
-from mdstuff.tools.misc import aslist
 
 
 def single_particle_msd(
