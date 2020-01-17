@@ -1,3 +1,3 @@
-from .tools import var2list
+from .misc import aslist
 
-__all__ = ["var2list"]
+__all__ = ["aslist"]
