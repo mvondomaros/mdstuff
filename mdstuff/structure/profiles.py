@@ -7,7 +7,7 @@ import tqdm
 from ..core import Histogram, MDStuffError
 
 
-def density_profile(
+def dprof(
     universe: MDAnalysis.Universe,
     selections: Sequence[str],
     lbound: float,
@@ -19,7 +19,7 @@ def density_profile(
     skip: int = 0,
     wrap: bool = False,
 ) -> Union[
-    List[Tuple[np.ndarray, np.ndarray]],
+    List[np.ndarray],
 ]:
     """
     Compute one or more density profiles.
@@ -34,7 +34,7 @@ def density_profile(
     :param mass_profile: optional, whether mass density profiles should be computed
     :param skip: optional, skip this number of trajectory steps before starting the computation
     :param wrap: optional, whether wrapping should be performed
-    :return: a list of (bin centers, density) tuples of numpy arrays
+    :return: a list of of numpy arrays containing bin centers and densities
     """
     # Select atoms.
     atom_groups = []
@@ -46,9 +46,7 @@ def density_profile(
     center_group = universe.select_atoms(center_group)
 
     # Set up the histograms.
-    histograms = [
-        Histogram(lbound, ubound, nr_bins, normalize=True) for _ in atom_groups
-    ]
+    histograms = [Histogram(lbound, ubound, nr_bins) for _ in atom_groups]
 
     # Loop over all frames of interest.
     for frame in tqdm.tqdm(universe.trajectory[skip:]):
@@ -62,7 +60,7 @@ def density_profile(
             universe.atoms.positions -= 0.5 * frame.dimensions[:3]
 
         # Compute the current inverse volume of the bins.
-        norm = frame.dimensions[direction] / (
+        inverse_volume = frame.dimensions[direction] / (
             np.prod(frame.dimensions[:3]) * histograms[0].bin_width
         )
 
@@ -70,9 +68,9 @@ def density_profile(
         for ag, h in zip(atom_groups, histograms):
             x = ag.positions[:, direction]
             if mass_profile:
-                h.add_array(x, weights=ag.masses, norm=norm)
+                h.add_array(x, weights=ag.masses, factor=inverse_volume)
             else:
-                h.add_array(x, weights=np.full_like(x, fill_value=1.0), norm=norm)
+                h.add_array(x, factor=inverse_volume)
 
     # Return the histogram(s).
-    return [h.to_tuple() for h in histograms]
+    return [h.to_array() for h in histograms]

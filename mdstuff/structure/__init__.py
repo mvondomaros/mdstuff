@@ -1,3 +1,3 @@
-from .profiles import density_profile
+from .profiles import dprof
 
-__all__ = ["density_profile"]
+__all__ = ["dprof"]
