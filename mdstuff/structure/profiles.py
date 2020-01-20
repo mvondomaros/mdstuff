@@ -1,4 +1,4 @@
-from typing import Sequence, Tuple, Union, List
+from typing import Sequence, Union, List
 
 import MDAnalysis
 import numpy as np
