@@ -1,3 +1,3 @@
-from .profiles import dprof
+from .dprof import dprof
 
 __all__ = ["dprof"]
