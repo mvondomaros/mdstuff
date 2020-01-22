@@ -16,11 +16,11 @@ def single_particle_msd(
     :param universe: an MDAnalysis Universe
     :param selection: the particle selection string
     :param skip: optional, skip this number of trajectory steps before starting the computation
-    :param length: optional, the length of the MSD time series in trajectory steps; defaults to 2/3 of the trajectory
+    :param length: optional, the length of the MSD time series in trajectory steps; defaults to 1/2 of the trajectory
     :return: a (length, 2) numpy array containing time and MSD columns
     """
     if length is None:
-        length = 2 * len(universe.trajectory) // 3
+        length = len(universe.trajectory) // 2
     else:
         if length > len(universe.trajectory):
             raise MDStuffError(
