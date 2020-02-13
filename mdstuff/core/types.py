@@ -1,3 +1,3 @@
-from typing import Union, Tuple
+from typing import Union, Sequence
 
-Selection = Union[str, Tuple[str]]
+Selection = Union[str, Sequence[str]]
