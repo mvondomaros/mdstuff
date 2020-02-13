@@ -1,5 +1,11 @@
+from .analyses import Analysis
 from .errors import MDStuffError
-from .histogram import Histogram
-from .universe import NAMDUniverse
+from .namd import NAMDUniverse
+from .universe import Universe
 
-__all__ = ["NAMDUniverse", "MDStuffError", "Histogram"]
+__all__ = [
+    "Analysis",
+    "MDStuffError",
+    "NAMDUniverse",
+    "Universe",
+]

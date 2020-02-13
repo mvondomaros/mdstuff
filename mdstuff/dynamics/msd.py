@@ -40,7 +40,7 @@ def single_particle_msd(
     x0 = deque(maxlen=length)
 
     # Loop over all frames.
-    for frame in tqdm.tqdm(universe.trajectory[skip:]):
+    for _ in tqdm.tqdm(universe.trajectory[skip:]):
         x = sel.atoms.center_of_mass()
         x0.appendleft(x)
         # Compute and accumulate the squared displacement.
