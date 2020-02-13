@@ -153,27 +153,34 @@ class InterCompoundDistance(StructureFunction):
         else:
             self.box = None
 
-    def __call__(self) -> np.ndarray:
+    def _get_x_y(self) -> Tuple[np.ndarray, np.ndarray]:
         if self.compound is None:
             x = self.ag.positions
         else:
             x = self.ag.center_of_mass(compound=self.compound)
-        if self.other_ag is not None:
+            if self.compound == "group":
+                x = x.reshape((1, -1))
+        if self.other_ag is None:
+            y = None
+        else:
             if self.other_compound is None:
                 y = self.other_ag.positions
-            elif self.other_compound == "group":
-                y = self.other_ag.ag2.center_of_mass(
-                    compound=self.other_compound
-                ).reshape((1, -1))
             else:
                 y = self.other_ag.center_of_mass(compound=self.other_compound)
-            d = MDAnalysis.lib.distances.distance_array(
-                reference=y, configuration=x, box=self.box, backend="OpenMP",
-            ).reshape(-1)
-        else:
+                if self.other_compound == "group":
+                    y = y.reshape((1, -1))
+        return x, y
+
+    def __call__(self) -> np.ndarray:
+        x, y = self._get_x_y()
+        if y is None:
             d = MDAnalysis.lib.distances.self_distance_array(
                 reference=x, box=self.box, backend="OpenMP",
             )
+        else:
+            d = MDAnalysis.lib.distances.distance_array(
+                reference=y, configuration=x, box=self.box, backend="OpenMP",
+            ).reshape(-1)
         return d
 
     @property
@@ -221,26 +228,15 @@ class InterCompoundDistanceProjection(InterCompoundDistance):
             raise MDStuffError(f"invalid dimension: {dimension=}")
 
     def __call__(self) -> np.ndarray:
-        if self.compound is None:
-            x = self.ag.positions[:, self.dimension]
-        else:
-            x = self.ag.center_of_mass(compound=self.compound)[:, self.dimension]
-        if self.other_ag is not None:
-            if self.other_compound is None:
-                y = self.other_ag.positions[:, self.dimension]
-            elif self.other_compound == "group":
-                y = self.other_ag.center_of_mass(compound=self.other_compound)[
-                    self.dimension
-                ]
-            else:
-                y = self.other_ag.center_of_mass(compound=self.other_compound)[
-                    :, self.dimension
-                ]
-            d = y[:, None] - x[None, :]
-        else:
+        x, y = self._get_x_y()
+        x = x[:, self.dimension]
+        if y is None:
             # Behold the numpy magic!
             d = x[:, None] - x[None, :]
             d = d[np.triu_indices_from(d, k=1)]
+        else:
+            y = y[:, self.dimension]
+            d = y[:, None] - x[None, :]
         if self.box is not None:
             apply_mic_1d(d, self.box[self.dimension])
         return d
