@@ -296,9 +296,14 @@ class CompoundAxisPosition(AxisPosition):
         self.compound = compound
 
     def __call__(self) -> np.ndarray:
-        return self.ag.center_of_mass(compound=self.compound, pbc=self.use_pbc)[
-            :, self.dimension
-        ]
+        if self.compound == "group":
+            return self.ag.center_of_mass(compound=self.compound, pbc=self.use_pbc)[
+                self.dimension
+            ].reshape(-1)
+        else:
+            return self.ag.center_of_mass(compound=self.compound, pbc=self.use_pbc)[
+                :, self.dimension
+            ]
 
     @property
     def shape(self) -> Tuple:

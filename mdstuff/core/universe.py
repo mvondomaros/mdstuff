@@ -78,6 +78,8 @@ class Universe(MDAnalysis.Universe):
         if compound is None:
             ag = self.select_atoms(*selection)
             return len(ag)
+        elif compound == "group":
+            return 1
         else:
             if selection is None:
                 return len(getattr(self, compound))
