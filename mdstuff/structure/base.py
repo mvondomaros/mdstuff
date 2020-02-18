@@ -171,6 +171,10 @@ class Histogram2D(Analysis):
             raise MDStuffError(
                 f"weight function does not return a one-dimensional array"
             )
+        if x_function.shape != y_function.shape:
+            raise MDStuffError(f"x- and y-function return different number of values")
+        if weight_function is not None and weight_function.shape != x_function.shape:
+            raise MDStuffError(f"weight function returns different number of values")
 
         super().__init__(universe=x_function.universe)
 
