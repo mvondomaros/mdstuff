@@ -116,35 +116,35 @@ class Universe(MDAnalysis.Universe):
                 f"atom pair selection is static; updates are not permitted"
             )
 
+        # Check if there are any atoms selected at all.
+        ag1 = self.select_atoms(selection1)
+        ag2 = self.select_atoms(selection2)
+        n1 = len(ag1)
+        n2 = len(ag2)
+        if n1 == 0:
+            raise MDStuffError(f"selection1 is empty")
+        if n2 == 0:
+            raise MDStuffError(f"selection2 is empty")
+
+        # Construct a set and an ordered list of pair indices.
         index_set = set()
         index_list = list()
 
-        if mode == "zip" or mode == "product":
-            ag1 = self.select_atoms(selection1)
-            ag2 = self.select_atoms(selection2)
-            n1 = len(ag1)
-            n2 = len(ag2)
-            if n1 == 0:
-                raise MDStuffError(f"selection1 is empty")
-            if n2 == 0:
-                raise MDStuffError(f"selection2 is empty")
-            if mode == "zip":
-                if n1 != n2:
-                    raise MDStuffError(
-                        f"the number of atoms in selection1 ({n1}) does not match "
-                        f"the number of atoms in selection2 ({n2})"
-                    )
-                for i1, i2 in zip(ag1.ix, ag2.ix):
-                    if (i1, i2) not in index_set:
-                        index_set.add((i1, i2))
-                        index_list.append((i1, i2))
-            elif mode == "product":
-                for i1, i2 in itertools.product(ag1.ix, ag2.ix):
-                    if (i1, i2) not in index_set:
-                        index_set.add((i1, i2))
-                        index_list.append((i1, i2))
-            else:
-                raise NotImplementedError
+        if mode == "zip":
+            if n1 != n2:
+                raise MDStuffError(
+                    f"the number of atoms in selection1 ({n1}) does not match "
+                    f"the number of atoms in selection2 ({n2})"
+                )
+            for i1, i2 in zip(ag1.ix, ag2.ix):
+                if (i1, i2) not in index_set:
+                    index_set.add((i1, i2))
+                    index_list.append((i1, i2))
+        elif mode == "product":
+            for i1, i2 in itertools.product(ag1.ix, ag2.ix):
+                if (i1, i2) not in index_set:
+                    index_set.add((i1, i2))
+                    index_list.append((i1, i2))
         elif mode == "within":
             for c in getattr(self, compound):
                 ag1 = c.atoms.select_atoms(selection1)
