@@ -1,27 +1,13 @@
-from .distributions import CorrFunc2D, PDens, PDens2D, Prof, DProf
-from .functions import (
-    AxisPosition,
-    Charge,
-    CompoundAxisPosition,
-    Dipole,
-    DipoleOrientation,
-    InterCompoundDistance,
-    InterCompoundDistanceProjection,
-    IntraCompoundDistance,
-)
+from .base import Bins, Histogram, Histogram2D, Magnitude, StructureFunction
+from .distributions import PDens
+from .functions import Distance
 
 __all__ = [
-    "AxisPosition",
-    "Charge",
-    "CompoundAxisPosition",
-    "CorrFunc2D",
-    "Dipole",
-    "DipoleOrientation",
-    "DProf",
-    "InterCompoundDistance",
-    "InterCompoundDistanceProjection",
-    "IntraCompoundDistance",
+    "Bins",
+    "Distance",
+    "Histogram",
+    "Histogram2D",
+    "Magnitude",
     "PDens",
-    "PDens2D",
-    "Prof",
+    "StructureFunction",
 ]

@@ -1,5 +1,3 @@
-import mdstuff.dynamics
-import mdstuff.structure
-from .core import NAMDUniverse, MDStuffError
+from .core import MDStuffError, NAMDUniverse, Universe
 
-__all__ = ["NAMDUniverse", "MDStuffError", "dynamics", "structure"]
+__all__ = ["MDStuffError", "NAMDUniverse", "Universe"]

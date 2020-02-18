@@ -4,7 +4,7 @@ import MDAnalysis
 import numpy as np
 import tqdm
 
-from mdstuff.core.errors import MDStuffError
+from mdstuff_old.core.errors import MDStuffError
 
 
 def single_particle_msd(

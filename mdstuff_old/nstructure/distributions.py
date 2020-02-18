@@ -1,21 +1,13 @@
-from typing import Tuple, Union
+from typing import Tuple
 
 import numpy as np
 
-from .base import Bins, Histogram, Histogram2D, StructureFunction
-from .. import MDStuffError
+from .functions import StructureFunction
+from ..core.analyses import RunningHist
+from ..core.errors import MDStuffError
 
 
-def _normalizing_volume(bins: Bins, mode: str) -> Union[float, np.ndarray]:
-    if mode == "linear":
-        return bins.bin_width
-    elif mode == "radial":
-        return (1.0 / 3.0) * (bins.edges[1:] ** 3 - bins.edges[:-1] ** 3)
-    else:
-        raise NotImplementedError(f"{mode=}")
-
-
-class PDens(Histogram):
+class PDens(RunningHist):
     """A one-dimensional probability density."""
 
     def __init__(
@@ -34,9 +26,21 @@ class PDens(Histogram):
         if mode not in ["linear", "radial"]:
             raise MDStuffError(f"invalid parameter value: {mode=}")
 
-        super().__init__(function=function, bounds=bounds, bin_width=bin_width)
+        super().__init__(bounds=bounds, bin_width=bin_width)
 
+        self.function = function
         self.mode = mode
+
+    def update(self, values: np.ndarray = None, weights: np.ndarray = None) -> None:
+        """
+        Add values to the histogram.
+
+        :param values: the values
+        :param weights: optional, some weights
+        """
+        if values is None:
+            values = self.function()
+        super().update(values=values, weights=weights)
 
     def get(self, centers: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -50,7 +54,11 @@ class PDens(Histogram):
         n = np.sum(counts)
         if n > 0.0:
             counts /= n
-        counts /= _normalizing_volume(bins=self.bins, mode=self.mode)
+        if self.mode == "linear":
+            counts /= self.bins.bin_width
+        elif self.mode == "radial":
+            rsqdr = (1.0 / 3.0) * (self.bins.edges[1:] ** 3 - self.bins.edges[:-1] ** 3)
+            counts /= rsqdr
         if centers:
             return counts, self.bins.centers.copy()
         else:

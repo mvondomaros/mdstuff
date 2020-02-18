@@ -93,7 +93,7 @@ class RunningHist2D(Analysis):
             )
         self.counts += counts
 
-    def get(self, centers: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def get(self, centers: bool = False,) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Return the counts and the bin edges.
 

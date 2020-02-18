@@ -1,24 +1,27 @@
 import glob
 import os
+import sys
 
 import matplotlib.pyplot as plt
 
-import mdstuff
+from mdstuff import NAMDUniverse
+from mdstuff.structure import PDens, Distance, Magnitude
 
 psf = os.path.abspath("../Data/WaterSqualeneSlab/Structure.psf")
 dcds = [
     os.path.abspath(p) for p in sorted(glob.glob("../Data/WaterSqualeneSlab/*.dcd"))
 ]
-analysis = mdstuff.structure.DProf(
-    function=mdstuff.structure.AxisPosition(selection="not resname TIP3",),
-    bounds=(0.0, 50.0),
-    bin_width=1.0,
-    weight_function=mdstuff.structure.Charge("not resname TIP3"),
+universe = NAMDUniverse(psf, dcds)
+ag1, ag2 = universe.select_atom_pairs(selection1="name C3", selection2="name C4")
+analysis = PDens(
+    function=Magnitude(Distance(ag1=ag1, ag2=ag2, use_mic=False)),
+    bounds=(1.0, 2.0),
+    bin_width=0.01,
 )
-universe = mdstuff.NAMDUniverse(psf, dcds).add_analyses(analysis).run_analyses()
+universe.add_analysis(analysis)
+universe.run_analyses(stop=100)
 
 plt.figure()
 n, z = analysis.get(centers=True)
 plt.plot(z, n)
 plt.show()
-plt.close()

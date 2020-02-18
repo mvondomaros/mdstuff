@@ -5,8 +5,8 @@ from typing import Sequence, Union, Tuple
 import MDAnalysis
 import numpy as np
 
-from .base import Universe
 from .errors import MDStuffError
+from .universe import Universe
 
 
 # noinspection PyMissingConstructor
@@ -23,11 +23,12 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
     format = "CONTINUOUSDCD"
 
     def __init__(
-        self, filenames: Sequence[str], lengths: Sequence[int], *args, **kwargs
+        self, filenames: Sequence[str], lengths: Sequence[int], **kwargs
     ) -> None:
         """
-        :param filenames: the sequence of file names
-        :param lengths: the sequence of trajectory lengths
+        :param filenames: a sequence of file names
+        :param lengths: a sequence of trajectory lengths or None
+        :param kwargs: keyword arguments passed on to DCDReader
         """
         # We're overwriting what happens ChainReader.__init__(), so we need to explicitly call the
         # grand-parent initializer.
@@ -38,7 +39,7 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
         for f in filenames:
             try:
                 self.readers.append(
-                    MDAnalysis.coordinates.DCD.DCDReader(filename=f, *args, **kwargs)
+                    MDAnalysis.coordinates.DCD.DCDReader(filename=f, **kwargs)
                 )
             except OSError as e:
                 warnings.warn(
@@ -88,11 +89,11 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
             self.total_times[:traj_index].sum() + (sub_frame + 1) * self.dts[traj_index]
         )
 
-    def Writer(self, *args, **kwargs):
+    def Writer(self, filename, **kwargs):
         raise NotImplementedError
 
     @classmethod
-    def parse_n_atoms(cls, *args, **kwargs):
+    def parse_n_atoms(cls, filename, **kwargs):
         raise NotImplementedError
 
     @property
@@ -106,7 +107,6 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
 class NAMDUniverse(Universe):
     """
     A NAMD specialized MDAnalysis Universe.
-
     Differences are:
         - works only with PSF and DCD files
         - multiple DCD files must be specified as a sequence
@@ -117,13 +117,13 @@ class NAMDUniverse(Universe):
 
     def __init__(
         self, psf: str, dcd: Union[str, Sequence[str], Sequence[Tuple[str, int]]]
-    ):
+    ) -> None:
         """
-        :param psf: the PSF file
-        :param dcd: the DCD file name, or a Sequence of DCD file names, or a Sequence of (filename, length) tuples, or a
-            mix thereof
+        :param psf: a PSF file
+        :param dcd: a DCD file name, or a Sequence of DCD file names, or a Sequence of (filename, length) tuples, or a
+                     mix thereof
         """
-        super().__init__(psf, topology_format="PSF")
+        super(NAMDUniverse, self).__init__(psf, topology_format="PSF")
 
         # Figure out the DCD files/length combo and initialize a ContinuousDCDReader.
         if isinstance(dcd, str):
@@ -156,9 +156,3 @@ class NAMDUniverse(Universe):
                 f"The number of atoms in the PSF and DCD files do not match ({self.n_atoms} != {reader.n_atoms})"
             )
         self.trajectory = reader
-
-    def __setstate__(self, state):
-        raise NotImplementedError
-
-    def __getstate__(self):
-        raise NotImplementedError
