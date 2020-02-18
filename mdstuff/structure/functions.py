@@ -68,3 +68,19 @@ class Mass(StructureFunction):
 
     def __call__(self):
         return self.ag.masses
+
+
+class Charge(StructureFunction):
+    def __init__(self, ag: AtomGroup):
+        n = len(ag)
+        if n == 0:
+            raise MDStuffError(f"ag is empty")
+
+        super().__init__(ag.universe)
+
+        self.ag = ag
+
+        self._shape = (n,)
+
+    def __call__(self):
+        return self.ag.charges

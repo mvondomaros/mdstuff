@@ -8,13 +8,15 @@ from .base import (
     StructureFunction,
     VectorReduction,
 )
-from .distributions import CorrFunc2D, PDens, PDens2D, Prof
-from .functions import Distance, Mass, Position
+from .distributions import CorrFunc2D, DProf, PDens, PDens2D, Prof
+from .functions import Charge, Distance, Mass, Position
 
 __all__ = [
     "Bins",
+    "Charge",
     "CorrFunc2D",
     "Distance",
+    "DProf",
     "Histogram",
     "Histogram2D",
     "Magnitude",

@@ -193,3 +193,64 @@ class Prof(Histogram):
         if self.nr_updates > 0:
             counts /= self.nr_updates
         return counts, bins
+
+
+class DProf(Prof):
+    """A one-dimensional density-profile."""
+
+    def __init__(
+        self,
+        function: StructureFunction,
+        bounds: Tuple[float, float],
+        bin_width: float,
+        weight_function: StructureFunction,
+        mode: str = "z",
+    ) -> None:
+        """
+        :param function: the structure function that defines the histogram
+        :param bounds: the lower and upper bounds of the histogram
+        :param bin_width: the bin width of the histogram
+        :param weight_function: the structure function that computes the weights
+        :param mode: optional, "x", "y", or "z" the normalization scheme
+        """
+        super().__init__(
+            function=function,
+            bounds=bounds,
+            bin_width=bin_width,
+            weight_function=weight_function,
+        )
+
+        if mode not in "xyz":
+            raise MDStuffError(f"invalid parameter argument: {mode=}")
+        self.mode = mode
+
+    def update(self) -> None:
+        """
+        Add weighted values to the histogram.
+        """
+        if self.mode == "x":
+            volume = (
+                self.universe.dimensions[1]
+                * self.universe.dimensions[2]
+                * self.bins.bin_width
+            )
+        elif self.mode == "y":
+            volume = (
+                self.universe.dimensions[0]
+                * self.universe.dimensions[2]
+                * self.bins.bin_width
+            )
+        elif self.mode == "z":
+            volume = (
+                self.universe.dimensions[0]
+                * self.universe.dimensions[1]
+                * self.bins.bin_width
+            )
+        else:
+            raise NotImplementedError(f"{self.mode=}")
+
+        values = self.function()
+        weights = self.weight_function() / volume
+        counts, _ = np.histogram(values, bins=self.bins.edges, weights=weights)
+        self.counts += counts
+        self.nr_updates += 1
