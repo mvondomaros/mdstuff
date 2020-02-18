@@ -1,12 +1,15 @@
 from typing import Tuple
 
+from MDAnalysis.core.groups import AtomGroup
+
 from .base import StructureFunction
 from .helpers import apply_mic
 from .. import MDStuffError
 
 
+# TODO: Comments.
 class Distance(StructureFunction):
-    def __init__(self, ag1, ag2, use_mic: bool = True):
+    def __init__(self, ag1: AtomGroup, ag2: AtomGroup, use_mic: bool = True):
         n1 = len(ag1)
         n2 = len(ag2)
         if n1 != n2:
@@ -30,6 +33,38 @@ class Distance(StructureFunction):
             apply_mic(d, self.universe.dimensions[:3])
         return d
 
-    @property
-    def shape(self) -> Tuple:
-        return self._shape
+
+class Position(StructureFunction):
+    def __init__(self, ag: AtomGroup, use_pbc: bool = False):
+        n = len(ag)
+        if n == 0:
+            raise MDStuffError(f"ag is empty")
+
+        super().__init__(ag.universe)
+
+        self.ag = ag
+        self.use_pbc = use_pbc
+
+        self._shape = (n, 3)
+
+    def __call__(self, *args, **kwargs):
+        x = self.ag.positions
+        if self.use_pbc:
+            apply_mic(x, self.universe.dimensions[:3])
+        return x
+
+
+class Mass(StructureFunction):
+    def __init__(self, ag: AtomGroup):
+        n = len(ag)
+        if n == 0:
+            raise MDStuffError(f"ag is empty")
+
+        super().__init__(ag.universe)
+
+        self.ag = ag
+
+        self._shape = (n,)
+
+    def __call__(self):
+        return self.ag.masses

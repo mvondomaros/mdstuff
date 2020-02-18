@@ -44,18 +44,18 @@ class StructureFunction(abc.ABC):
 
     def __init__(self, universe: Universe):
         self.universe = universe
+        self._shape = None
 
     @abc.abstractmethod
     def __call__(self, *args, **kwargs) -> np.ndarray:
         pass
 
     @property
-    @abc.abstractmethod
     def shape(self) -> Tuple:
-        pass
+        return self._shape
 
 
-class Magnitude(StructureFunction):
+class VectorReduction(StructureFunction, abc.ABC):
     def __init__(self, function: StructureFunction):
         if len(function.shape) != 2:
             raise MDStuffError(f"function does not return vectors")
@@ -64,13 +64,35 @@ class Magnitude(StructureFunction):
 
         self._shape = (function.shape[0],)
 
+    @abc.abstractmethod
+    def __call__(self) -> np.ndarray:
+        pass
+
+
+class Magnitude(VectorReduction):
     def __call__(self) -> np.ndarray:
         values = self.function()
         return np.linalg.norm(values, axis=1)
 
-    @property
-    def shape(self) -> Tuple:
-        return self._shape
+
+class Projection(VectorReduction):
+    def __init__(self, function: StructureFunction, n: int = 2):
+        super().__init__(function=function)
+
+        if n not in [0, 1, 2]:
+            raise MDStuffError(f"invalid parameter argument: {n=}")
+        self.n = n
+
+    def __call__(self) -> np.ndarray:
+        values = self.function()
+        return values[:, self.n]
+
+
+class Orientation(Projection):
+    def __call__(self) -> np.ndarray:
+        values = self.function()
+        magnitudes = np.linalg.norm(values, axis=1)
+        return values[:, self.n] / magnitudes
 
 
 class Histogram(Analysis):

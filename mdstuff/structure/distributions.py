@@ -149,3 +149,47 @@ class CorrFunc2D(PDens2D):
             return counts, self.x_bins.centers.copy(), self.y_bins.centers.copy()
         else:
             return counts, self.x_bins.edges.copy(), self.y_bins.edges.copy()
+
+
+class Prof(Histogram):
+    """A one-dimensional profile."""
+
+    def __init__(
+        self,
+        function: StructureFunction,
+        bounds: Tuple[float, float],
+        bin_width: float,
+        weight_function: StructureFunction,
+    ) -> None:
+        """
+        :param function: the structure function that defines the histogram
+        :param bounds: the lower and upper bounds of the histogram
+        :param bin_width: the bin width of the histogram
+        :param weight_function: the structure function that computes the weights
+        """
+        super().__init__(
+            function=function,
+            bounds=bounds,
+            bin_width=bin_width,
+            weight_function=weight_function,
+        )
+        self.nr_updates = 0
+
+    def update(self) -> None:
+        """
+        Add weighted values to the histogram.
+        """
+        super().update()
+        self.nr_updates += 1
+
+    def get(self, centers: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Return the probability densities and the bins edges.
+
+        :parameter centers: optional, return the bin centers instead of the bin edges
+        :return: the probability densities and the bin edges/centers
+        """
+        counts, bins = super().get(centers=centers)
+        if self.nr_updates > 0:
+            counts /= self.nr_updates
+        return counts, bins
