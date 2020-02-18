@@ -50,7 +50,7 @@ class PDens(Histogram):
         n = np.sum(counts)
         if n > 0.0:
             counts /= n
-        counts /= _normalizing_volume(bins=self.bins, mode=self.mode)
+            counts /= _normalizing_volume(bins=self.bins, mode=self.mode)
         if centers:
             return counts, self.bins.centers.copy()
         else:
@@ -109,8 +109,42 @@ class PDens2D(Histogram2D):
         n = np.sum(counts)
         if n > 0.0:
             counts /= n
-        counts /= _normalizing_volume(self.x_bins, mode=self.x_mode)
-        counts /= _normalizing_volume(self.y_bins, mode=self.y_mode)
+            counts /= _normalizing_volume(self.x_bins, mode=self.x_mode)
+            counts /= _normalizing_volume(self.y_bins, mode=self.y_mode)
+        if centers:
+            return counts, self.x_bins.centers.copy(), self.y_bins.centers.copy()
+        else:
+            return counts, self.x_bins.edges.copy(), self.y_bins.edges.copy()
+
+
+class CorrFunc2D(PDens2D):
+    """A two-dimensional correlation function."""
+
+    def get(self, centers: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Return the probability densities and the bin edges.
+
+        :parameter centers: optional, return the bin centers instead of the bin edges
+        :return: the probability densities and the bin edges/centers
+        """
+        counts, _, _ = super().get()
+        hx = np.sum(counts, axis=0)
+        nx = np.sum(hx)
+        if nx > 0.0:
+            hx /= nx
+            hx /= _normalizing_volume(bins=self.x_bins, mode=self.x_mode)
+        hy = np.sum(counts, axis=1)
+        ny = np.sum(hy)
+        if ny > 0.0:
+            hy /= ny
+            hy /= _normalizing_volume(bins=self.y_bins, mode=self.y_mode)
+        hxy = np.tensordot(hx, hy, axes=0).T
+        nxy = np.sum(hxy)
+        if nxy > 0.0:
+            hxy /= nxy
+            hxy /= _normalizing_volume(bins=self.x_bins, mode=self.x_mode)
+            hxy /= _normalizing_volume(bins=self.y_bins, mode=self.y_mode)
+        counts -= hxy
         if centers:
             return counts, self.x_bins.centers.copy(), self.y_bins.centers.copy()
         else:
