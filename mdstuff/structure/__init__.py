@@ -9,9 +9,10 @@ from .base import (
     VectorReduction,
 )
 from .distributions import CorrFunc2D, DProf, PDens, PDens2D, Prof
-from .functions import Charge, Distance, Mass, Position
+from .functions import Angle, Charge, Distance, Mass, Position
 
 __all__ = [
+    "Angle",
     "Bins",
     "Charge",
     "CorrFunc2D",

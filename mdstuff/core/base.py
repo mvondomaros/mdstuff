@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import abc
 import itertools
-import sys
 from typing import Any, Tuple
 
 import MDAnalysis
 import numpy as np
 import tqdm
+from MDAnalysis.core.groups import AtomGroup
 
 from .errors import MDStuffError
 
@@ -84,7 +84,7 @@ class Universe(MDAnalysis.Universe):
         mode: str = "zip",
         compound: str = "residues",
         updating=False,
-    ) -> Tuple[MDAnalysis.core.groups.AtomGroup, MDAnalysis.core.groups.AtomGroup]:
+    ) -> Tuple[AtomGroup, AtomGroup]:
         """
         Select pairs of atoms. Returns two atom lists of equal length, corresponding to the first and second
         elements of the pairs, respectively.
@@ -179,6 +179,76 @@ class Universe(MDAnalysis.Universe):
             raise NotImplementedError
         i1, i2 = np.transpose(index_list)
         return (
-            MDAnalysis.core.groups.AtomGroup(i1, self),
-            MDAnalysis.core.groups.AtomGroup(i2, self),
+            AtomGroup(i1, self),
+            AtomGroup(i2, self),
         )
+
+    def select_atom_triplets(
+        self,
+        ag1: AtomGroup,
+        ag2: AtomGroup,
+        selection: str,
+        mode: str = "zip",
+        compound: str = "residues",
+        updating=False,
+    ) -> Tuple[
+        AtomGroup, AtomGroup, AtomGroup,
+    ]:
+        """
+        Select triplets of atoms.
+        """
+        n1 = len(ag1)
+        n2 = len(ag2)
+        if n1 != n2:
+            raise MDStuffError(
+                f"the number of atoms in ag1 ({n1}) does not match the number of atoms in ag2 ({n2})"
+            )
+        if n1 == 0:
+            raise MDStuffError(f"no atoms selected in ag1 and ag2")
+        if compound is not None and compound not in [
+            "residues",
+            "molecules",
+            "fragments",
+            "segments",
+        ]:
+            raise MDStuffError(f"invalid parameter value: {compound=}")
+        if mode not in ["zip", "product", "within", "between"]:
+            raise MDStuffError(f"invalid parameter value: {mode=}")
+        if updating is True:
+            raise MDStuffError(
+                f"atom pair selection is static; updates are not permitted"
+            )
+
+        # Check if there are any atoms selected at all.
+        ag3 = self.select_atoms(selection)
+        n3 = len(ag3)
+        if n3 == 0:
+            raise MDStuffError(f"selection is empty")
+
+        # Construct a set and an ordered list of pair indices.
+        index_set = set()
+        index_list = list()
+
+        if mode == "zip":
+            if n1 != n3:
+                raise MDStuffError(
+                    f"the number of atoms in ag1 and ag2 ({n1}) does not match "
+                    f"the number of selected atoms ({n3})"
+                )
+            for i1, i2, i3 in zip(ag1.ix, ag2.ix, ag3.ix):
+                if (i1, i2, i3) not in index_set:
+                    index_set.add((i1, i2, i3))
+                    index_list.append((i1, i2, i3))
+        elif mode == "product":
+            for (i1, i2), i3 in itertools.product(zip(ag1.ix, ag2.ix), ag3.ix):
+                if (i1, i2, i3) not in index_set:
+                    index_set.add((i1, i2, i3))
+                    index_list.append((i1, i2, i3))
+        elif mode == "within":
+            raise NotImplementedError
+        elif mode == "between":
+            raise NotImplementedError
+        else:
+            raise NotImplementedError
+        i1, i2, i3 = np.transpose(index_list)
+        return (AtomGroup(i1, self), AtomGroup(i2, self), AtomGroup(i3, self))

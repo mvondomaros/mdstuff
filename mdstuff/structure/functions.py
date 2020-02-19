@@ -1,5 +1,5 @@
-from typing import Tuple
-
+import MDAnalysis
+import numpy as np
 from MDAnalysis.core.groups import AtomGroup
 
 from .base import StructureFunction
@@ -84,3 +84,42 @@ class Charge(StructureFunction):
 
     def __call__(self):
         return self.ag.charges
+
+
+class Angle(StructureFunction):
+    def __init__(
+        self, vertex: AtomGroup, tip1: AtomGroup, tip2: AtomGroup, use_mic: bool = True,
+    ):
+        n1 = len(tip1)
+        n2 = len(vertex)
+        n3 = len(tip2)
+        if not n1 == n2 == n3:
+            raise MDStuffError(
+                f"the number of atoms in the vertex group ({n2}) does not match "
+                f"the number of atoms in the tip1 group ({n1}) and/or the number of atoms in the tip2 group ({n3})"
+            )
+        elif n1 == 0:
+            raise MDStuffError(f"all atom groups are empty")
+
+        super().__init__(vertex.universe)
+
+        self.ag1 = tip1
+        self.ag2 = vertex
+        self.ag3 = tip2
+        if use_mic:
+            self.box = self.universe.dimensions
+        else:
+            self.box = None
+
+        self._shape = (n1,)
+
+    def __call__(self, *args, **kwargs):
+        a = MDAnalysis.lib.distances.calc_angles(
+            self.ag1.positions,
+            self.ag2.positions,
+            self.ag3.positions,
+            box=self.box,
+            backend="OpenMP",
+        )
+        a *= 180.0 / np.pi
+        return a

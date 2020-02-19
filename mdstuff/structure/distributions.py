@@ -11,6 +11,10 @@ def _normalizing_volume(bins: Bins, mode: str) -> Union[float, np.ndarray]:
         return bins.bin_width
     elif mode == "radial":
         return (1.0 / 3.0) * (bins.edges[1:] ** 3 - bins.edges[:-1] ** 3)
+    elif mode == "angular":
+        return np.cos(bins.edges[:-1] * np.pi / 180.0) - np.cos(
+            bins.edges[1:] * np.pi / 180.0
+        )
     else:
         raise NotImplementedError(f"{mode=}")
 
@@ -29,9 +33,9 @@ class PDens(Histogram):
         :param function: the structure function
         :param bounds: the lower and upper bounds of the histogram
         :param bin_width: the bin width of the histogram
-        :param mode: optional, the normalization mode ("linear" or "radial")
+        :param mode: optional, the normalization mode ("linear", "radial", or "angular")
         """
-        if mode not in ["linear", "radial"]:
+        if mode not in ["linear", "radial", "angular"]:
             raise MDStuffError(f"invalid parameter value: {mode=}")
 
         super().__init__(function=function, bounds=bounds, bin_width=bin_width)
@@ -78,8 +82,8 @@ class PDens2D(Histogram2D):
         :param y_function: the structure function for the y-channel
         :param y_bounds:  the lower and upper bounds of the y-channel
         :param y_bin_width: the bin width of the y-channel
-        :param x_mode: optional, "linear" or "radial", the normalization scheme for the x-channel
-        :param y_mode: optional, "linear" or "radial", the normalization scheme for the y-channel
+        :param x_mode: optional, "linear", "radial", or "angular": the normalization scheme for the x-channel
+        :param y_mode: optional, "linear", "radial", or "angular": the normalization scheme for the y-channel
         """
         super().__init__(
             x_function=x_function,
@@ -90,9 +94,9 @@ class PDens2D(Histogram2D):
             y_bin_width=y_bin_width,
         )
 
-        if x_mode not in ["linear", "radial"]:
+        if x_mode not in ["linear", "radial", "angular"]:
             raise MDStuffError(f"invalid x_mode: {x_mode}")
-        if y_mode not in ["linear", "radial"]:
+        if y_mode not in ["linear", "radial", "angular"]:
             raise MDStuffError(f"invalid y_mode: {y_mode}")
 
         self.x_mode = x_mode
@@ -109,8 +113,10 @@ class PDens2D(Histogram2D):
         n = np.sum(counts)
         if n > 0.0:
             counts /= n
-            counts /= _normalizing_volume(self.x_bins, mode=self.x_mode)
-            counts /= _normalizing_volume(self.y_bins, mode=self.y_mode)
+            counts /= np.atleast_2d(_normalizing_volume(self.x_bins, mode=self.x_mode))
+            counts /= np.atleast_2d(
+                _normalizing_volume(self.y_bins, mode=self.y_mode)
+            ).T
         if centers:
             return counts, self.x_bins.centers.copy(), self.y_bins.centers.copy()
         else:
@@ -127,23 +133,24 @@ class CorrFunc2D(PDens2D):
         :parameter centers: optional, return the bin centers instead of the bin edges
         :return: the probability densities and the bin edges/centers
         """
-        counts, _, _ = super().get()
+        counts = self.counts.T.copy()
         hx = np.sum(counts, axis=0)
-        nx = np.sum(hx)
-        if nx > 0.0:
-            hx /= nx
-            hx /= _normalizing_volume(bins=self.x_bins, mode=self.x_mode)
         hy = np.sum(counts, axis=1)
-        ny = np.sum(hy)
-        if ny > 0.0:
-            hy /= ny
-            hy /= _normalizing_volume(bins=self.y_bins, mode=self.y_mode)
         hxy = np.tensordot(hx, hy, axes=0).T
+        n = np.sum(counts)
+        if n > 0.0:
+            counts /= n
+            counts /= np.atleast_2d(_normalizing_volume(self.x_bins, mode=self.x_mode))
+            counts /= np.atleast_2d(
+                _normalizing_volume(self.y_bins, mode=self.y_mode)
+            ).T
         nxy = np.sum(hxy)
-        if nxy > 0.0:
+        if n > 0.0:
             hxy /= nxy
-            hxy /= _normalizing_volume(bins=self.x_bins, mode=self.x_mode)
-            hxy /= _normalizing_volume(bins=self.y_bins, mode=self.y_mode)
+            hxy /= np.atleast_2d(_normalizing_volume(self.x_bins, mode=self.x_mode))
+            hxy /= np.atleast_2d(
+                _normalizing_volume(self.y_bins, mode=self.y_mode)
+            ).T
         counts -= hxy
         if centers:
             return counts, self.x_bins.centers.copy(), self.y_bins.centers.copy()
