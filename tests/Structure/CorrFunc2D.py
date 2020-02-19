@@ -16,7 +16,7 @@ ag1, ag2 = universe.select_atom_pairs(
     selection1="name C3", selection2="name C4", mode="within"
 )
 ag3, ag4 = universe.select_atom_pairs(
-    selection1="name C7", selection2="name C9", mode="within"
+    selection1="name C3", selection2="name C4", mode="within"
 )
 analysis = CorrFunc2D(
     x_function=Magnitude(Distance(ag1=ag1, ag2=ag2, use_mic=False)),

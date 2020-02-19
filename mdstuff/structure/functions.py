@@ -4,7 +4,7 @@ from MDAnalysis.core.groups import AtomGroup
 
 from .base import StructureFunction
 from .helpers import apply_mic
-from .. import MDStuffError
+from .. import MDStuffError, Universe
 
 
 # TODO: Comments.
@@ -123,3 +123,101 @@ class Angle(StructureFunction):
         )
         a *= 180.0 / np.pi
         return a
+
+
+class CompoundDistance(StructureFunction):
+    def __init__(
+        self,
+        universe: Universe,
+        selection1: str,
+        selection2: str,
+        compound1="residues",
+        compound2="residues",
+        mode="product",
+        use_mic: bool = True,
+    ):
+        super().__init__(universe)
+
+        if compound1 not in [
+            "residues",
+            "molecules",
+            "fragments",
+            "segments",
+        ]:
+            raise MDStuffError(f"invalid parameter value: {compound1=}")
+        if compound2 not in [
+            "residues",
+            "molecules",
+            "fragments",
+            "segments",
+        ]:
+            raise MDStuffError(f"invalid parameter value: {compound2=}")
+
+        if mode not in ["zip", "product"]:
+            raise MDStuffError(f"invalid parameter argument: {mode=}")
+        self.mode = mode
+
+        self.ag1_list = []
+        for c in getattr(universe, compound1):
+            ag = c.atoms.select_atoms(selection1)
+            if len(ag) != 0:
+                self.ag1_list.append(ag)
+        n1 = len(self.ag1_list)
+        if n1 == 0:
+            raise MDStuffError(f"selection1 did not return any compounds")
+
+        self.ag2_list = []
+        for c in getattr(universe, compound2):
+            ag = c.atoms.select_atoms(selection2)
+            if len(ag) != 0:
+                self.ag2_list.append(ag)
+        n2 = len(self.ag2_list)
+        if n2 == 0:
+            raise MDStuffError(f"selection2 did not return any compounds")
+
+        self.use_mic = use_mic
+
+        self._shape = (n1, 3)
+
+    def __call__(self, *args, **kwargs):
+        x1 = np.array([ag.center_of_mass() for ag in self.ag1_list])
+        x2 = np.array([ag.center_of_mass() for ag in self.ag2_list])
+        if self.mode == "zip":
+            d = x2 - x1
+        elif self.mode == "product":
+            d = (x1[:, None] - x2[None, :]).reshape(-1, 3)
+        else:
+            raise NotImplementedError
+        if self.use_mic:
+            apply_mic(d, self.universe.dimensions[:3])
+        return d
+
+
+class Dipole(StructureFunction):
+    def __init__(self, universe: Universe, selection: str, compound="residues"):
+        super().__init__(universe)
+
+        if compound not in [
+            "residues",
+            "molecules",
+            "fragments",
+            "segments",
+        ]:
+            raise MDStuffError(f"invalid parameter value: {compound=}")
+
+        self.ag_list = []
+        for c in getattr(universe, compound):
+            ag = c.atoms.select_atoms(selection)
+            if len(ag) != 0:
+                self.ag_list.append(ag)
+        n = len(self.ag_list)
+        if n == 0:
+            raise MDStuffError(f"no compounds selected")
+        self._shape = (n, 3)
+
+    def __call__(self, *args, **kwargs):
+        x = np.array([ag.positions for ag in self.ag_list])
+        x0 = np.array([ag.center_of_mass() for ag in self.ag_list])
+        q = np.array([ag.charges for ag in self.ag_list])
+        mu = np.sum(q * (x - x0), axis=1)
+        return mu

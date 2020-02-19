@@ -148,9 +148,7 @@ class CorrFunc2D(PDens2D):
         if n > 0.0:
             hxy /= nxy
             hxy /= np.atleast_2d(_normalizing_volume(self.x_bins, mode=self.x_mode))
-            hxy /= np.atleast_2d(
-                _normalizing_volume(self.y_bins, mode=self.y_mode)
-            ).T
+            hxy /= np.atleast_2d(_normalizing_volume(self.y_bins, mode=self.y_mode)).T
         counts -= hxy
         if centers:
             return counts, self.x_bins.centers.copy(), self.y_bins.centers.copy()
