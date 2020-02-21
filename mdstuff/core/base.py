@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import abc
 import itertools
-from typing import Any, Tuple
+from typing import Any, Tuple, List
 
 import MDAnalysis
 import numpy as np
 import tqdm
 from MDAnalysis.core.groups import AtomGroup
 
-from .errors import MDStuffError, UniverseError
+from .errors import MDStuffError, UniverseError, ParameterValueError
 
 
 class Analysis:
@@ -58,7 +58,7 @@ class Universe(MDAnalysis.Universe):
     instance = None
 
     # A list of valid compound specifiers.
-    _VALID_COMPOUNDS = [None, "residues", "molecules", "fragments", "segments"]
+    _VALID_COMPOUNDS = ["residues", "molecules", "fragments", "segments"]
 
     def __init__(self, *args, **kwargs):
         # Check if there's already another universe.
@@ -123,42 +123,45 @@ class Universe(MDAnalysis.Universe):
         compound: str = "residues",
     ) -> Tuple[AtomGroup, AtomGroup]:
         """
-        Select pairs of atoms. Returns two atom lists of equal length, corresponding to the first and second
+        Select unique pairs of atoms. Returns two atom lists of equal length, corresponding to the first and second
         elements of the pairs, respectively.
 
         :param selection1: the first selection string
         :param selection2: the second selection string
         :param mode: optional, the mode
-            "zip": zip over selected atoms
-            "product": return unique pairs of atoms from the cartesian product of both selections
-            "within": return unique pairs of atoms within the same compound from the cartesian product of both
-                selections
-            "between": return unique pairs of atoms between different compounds from the cartesian product of both
-                selections
+            "zip": zip over atoms in selection1 and selection2
+            "product": form the cartesian product between atoms in selection1 and selection2
+            "within": form the cartesian product between atoms in selection1 and selection2 that are within the same
+                compound
+            "between": form the cartesian product between atoms in selection1 and selection2 that are *not* within the
+                same compound
         :param compound: optional, the compound specifier for mode="between" or mode="within"
-        :return:
+        :return: two atom groups
         """
+        # Check the compound specifier.
         if compound not in self._VALID_COMPOUNDS:
-            raise MDStuffError(f"invalid parameter value: {compound=}")
-        if mode not in ["zip", "product", "within", "between"]:
-            raise MDStuffError(f"invalid parameter value: {mode=}")
+            raise ParameterValueError(
+                name="compound", value=compound, allowed_values=self._VALID_COMPOUNDS
+            )
 
-        # Check if there are any atoms selected at all.
-        ag1 = self.select_atoms(selection1)
-        ag2 = self.select_atoms(selection2)
-        n1 = len(ag1)
-        n2 = len(ag2)
-        if n1 == 0:
-            raise MDStuffError(f"selection1 is empty")
-        if n2 == 0:
-            raise MDStuffError(f"selection2 is empty")
+        # Check the mode.
+        _VALID_MODES = ["zip", "product", "within", "between"]
+        if mode not in _VALID_MODES:
+            raise ParameterValueError(
+                name="mode", value=mode, allowed_values=_VALID_MODES
+            )
 
-        # Construct a set and an ordered list of pair indices.
+        # In the following, we construct two collections: a list of pair indices (ordered), and a set of pair indices
+        # (unordered, unique). Only pairs that are not in the set will be added to the list. In the end, the atom groups
+        # will be constructed from the indices in the list.
         index_set = set()
         index_list = list()
 
         if mode == "zip":
-            if n1 != n2:
+            # Here, we zip over pairs of atoms in ag1 and ag2.
+            ag1 = self.select_atoms(selection1)
+            ag2 = self.select_atoms(selection2)
+            if (n1 := len(ag1)) != (n2 := len(ag2)):
                 raise MDStuffError(
                     f"the number of atoms in selection1 ({n1}) does not match "
                     f"the number of atoms in selection2 ({n2})"
@@ -168,35 +171,41 @@ class Universe(MDAnalysis.Universe):
                     index_set.add((i1, i2))
                     index_list.append((i1, i2))
         elif mode == "product":
+            # Here, we form the cartesian product of atoms in ag1 and ag2.
+            ag1 = self.select_atoms(selection1)
+            ag2 = self.select_atoms(selection2)
             for i1, i2 in itertools.product(ag1.ix, ag2.ix):
                 if (i1, i2) not in index_set:
                     index_set.add((i1, i2))
                     index_list.append((i1, i2))
         elif mode == "within":
+            # Here, we loop over all selected compounds, select the respective atoms, and form the cartesian product.
             for c in getattr(self, compound):
                 ag1 = c.atoms.select_atoms(selection1)
                 ag2 = c.atoms.select_atoms(selection2)
-                n1 = len(ag1)
-                n2 = len(ag2)
-                if n1 == 0 or n2 == 0:
+                if len(ag1) == 0 or len(ag2) == 0:
+                    # Cartesian product will be empty, no need to continue.
                     continue
                 for i1, i2 in itertools.product(ag1.ix, ag2.ix):
                     if (i1, i2) not in index_set:
                         index_set.add((i1, i2))
                         index_list.append((i1, i2))
         elif mode == "between":
+            # Here, we loop over all pairs of unequal compounds, select the respective atoms, and form the cartesian
+            # product.
             compounds = getattr(self, compound)
             for c1 in compounds:
                 ag1 = c1.atoms.select_atoms(selection1)
-                n1 = len(ag1)
-                if n1 == 0:
+                if len(ag1) == 0:
+                    # Cartesian product will be empty, no need to continue.
                     continue
                 for c2 in compounds:
                     if c1 == c2:
+                        # Same compound. No need to continue.
                         continue
                     ag2 = c2.atoms.select_atoms(selection2)
-                    n2 = len(ag2)
-                    if n2 == 0:
+                    if len(ag2) == 0:
+                        # Cartesian product will be empty, no need to continue.
                         continue
                     for i1, i2 in itertools.product(ag1.ix, ag2.ix):
                         if (i1, i2) not in index_set:
@@ -204,52 +213,50 @@ class Universe(MDAnalysis.Universe):
                             index_list.append((i1, i2))
         else:
             raise NotImplementedError
+
         i1, i2 = np.transpose(index_list)
         return AtomGroup(i1, self), AtomGroup(i2, self)
 
     def select_atom_triplets(
-        self,
-        ag1: AtomGroup,
-        ag2: AtomGroup,
-        selection: str,
-        mode: str = "zip",
-        compound: str = "residues",
+        self, ag1: AtomGroup, ag2: AtomGroup, selection: str, mode: str = "zip",
     ) -> Tuple[
         AtomGroup, AtomGroup, AtomGroup,
     ]:
         """
-        Select triplets of atoms.
+        Select unique triplets of atoms. Returns three atom lists of equal length, corresponding to the first, second,
+        and third elements of the triplets, respectively.
+
+        :param ag1: the first atom group (use select_pairs() to get the desired selection)
+        :param ag2: the second atom group (use select_pairs() to get the desired selection)
+        :param selection: the selection string for the third atom group
+        :param mode: optional, the mode
+            "zip": zip over atoms in ag1, ag2 and selection3
+            "product": form the cartesian product between pairs of atoms in ag1 and ag2 and those atoms in selection3
+        :return: two atom groups
         """
-        n1 = len(ag1)
-        n2 = len(ag2)
-        if n1 != n2:
+        # Check the mode.
+        _VALID_MODES = ["zip", "product"]
+        if mode not in _VALID_MODES:
+            raise ParameterValueError(
+                name="mode", value=mode, allowed_values=_VALID_MODES
+            )
+
+        # Check the lengths of ag1 and ag2.
+        if (n1 := len(ag1)) != (n2 := len(ag2)):
             raise MDStuffError(
                 f"the number of atoms in ag1 ({n1}) does not match the number of atoms in ag2 ({n2})"
             )
-        if n1 == 0:
-            raise MDStuffError(f"no atoms selected in ag1 and ag2")
-        if compound is not None and compound not in [
-            "residues",
-            "molecules",
-            "fragments",
-            "segments",
-        ]:
-            raise MDStuffError(f"invalid parameter value: {compound=}")
-        if mode not in ["zip", "product", "within", "between"]:
-            raise MDStuffError(f"invalid parameter value: {mode=}")
 
-        # Check if there are any atoms selected at all.
-        ag3 = self.select_atoms(selection)
-        n3 = len(ag3)
-        if n3 == 0:
-            raise MDStuffError(f"selection is empty")
-
-        # Construct a set and an ordered list of pair indices.
+        # In the following, we construct two collections: a list of triplet indices (ordered), and a set of triplet
+        # indices (unordered, unique). Only triplets that are not in the set will be added to the list. In the end,
+        # the atom groups will be constructed from the indices in the list.
         index_set = set()
         index_list = list()
 
         if mode == "zip":
-            if n1 != n3:
+            # Here, we zip over triplets of atoms in ag1, ag2, and ag3.
+            ag3 = self.select_atoms(selection)
+            if n1 != (n3 := len(ag3)):
                 raise MDStuffError(
                     f"the number of atoms in ag1 and ag2 ({n1}) does not match "
                     f"the number of selected atoms ({n3})"
@@ -259,31 +266,42 @@ class Universe(MDAnalysis.Universe):
                     index_set.add((i1, i2, i3))
                     index_list.append((i1, i2, i3))
         elif mode == "product":
+            # Here, we form the cartesian product between pairs in ag1 and ag2, and atoms ag3.
+            ag3 = self.select_atoms(selection)
             for (i1, i2), i3 in itertools.product(zip(ag1.ix, ag2.ix), ag3.ix):
                 if (i1, i2, i3) not in index_set:
                     index_set.add((i1, i2, i3))
                     index_list.append((i1, i2, i3))
-        elif mode == "within":
-            raise NotImplementedError
-        elif mode == "between":
-            raise NotImplementedError
         else:
             raise NotImplementedError
         i1, i2, i3 = np.transpose(index_list)
         return AtomGroup(i1, self), AtomGroup(i2, self), AtomGroup(i3, self)
 
-    def select_compounds(self, selection: str, compound: str = "residues"):
+    def select_compounds(
+        self, selection: str, compound: str = "residues"
+    ) -> List[AtomGroup]:
+        """
+        Select compounds of atoms.
+
+        :param selection: the selection string
+        :param compound: optional, the compound specifier
+        :return: a list of atom groups
+        """
         ag_list = []
         if compound == "group":
             ag = self.select_atoms(selection)
             if len(ag) != 0:
                 ag_list.append(ag)
-        elif compound in ["residues", "molecules", "fragments", "segments"]:
+        elif compound in self._VALID_COMPOUNDS:
             for c in getattr(self, compound):
                 ag = c.atoms.select_atoms(selection)
                 if len(ag) != 0:
                     ag_list.append(ag)
         else:
-            raise MDStuffError(f"invalid parameter argument: {compound=}")
+            raise ParameterValueError(
+                name="compound",
+                value=compound,
+                allowed_values=self._VALID_COMPOUNDS + ["group"],
+            )
 
         return ag_list
