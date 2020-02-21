@@ -24,7 +24,7 @@ class MSD(Analysis):
         super().__init__(universe=ag_list[0].universe)
 
         self.ag_list = ag_list
-        self.length = length
+        self.length = len(self.universe.trajectory) // 2 if length is None else length
         self.msd = None
         self.time = None
 
@@ -46,7 +46,9 @@ class MSD(Analysis):
                 r.append(ag.center_of_mass())
             r = np.array(r)
 
-            msds.extend([msd_fft(r[:, i], length=self.length) for i in range(3)])
+            msds.append(
+                np.sum([msd_fft(r[:, i], length=self.length) for i in range(3)], axis=0)
+            )
 
         self.msd = np.mean(msds, axis=0)
         self.time = np.arange(self.msd.size) * self.universe.trajectory.dt * step
