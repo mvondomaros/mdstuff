@@ -82,7 +82,6 @@ class Universe(MDAnalysis.Universe):
         :param step: optional, the time step increment
         """
         # Check if we can skip the main loop, because all analyses are OTAs.
-
         modes = [analysis.MODE for analysis in self.analyses]
         if np.any(np.array(modes) == "RA"):
             for _ in tqdm.tqdm(
