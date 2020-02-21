@@ -87,7 +87,7 @@ class Universe(MDAnalysis.Universe):
         """
         self.analyses.append(analysis)
 
-    def run_analyses(self, start: int = 0, stop: int = -1, step: int = 1):
+    def run_analyses(self, start: int = None, stop: int = None, step: int = None):
         """
         Run all analyses.
 
