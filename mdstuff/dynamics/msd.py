@@ -22,9 +22,9 @@ class SingleParticleMSD(Analysis):
                 value=n,
                 allowed_values="an int, with 0 < n <= len(trajectory)",
             )
-        if not isinstance(m, int) or m <= 0 or m > n:
+        if not isinstance(m, int) or m <= 0:
             raise ParameterValueError(
-                name="m", value=m, allowed_values="an int, with 0 < m <= n"
+                name="m", value=m, allowed_values="an int, with 0 < m"
             )
 
         self.ag = ag
@@ -63,4 +63,4 @@ class SingleParticleMSD(Analysis):
         self.time = np.arange(corr_len) * self.universe.trajectory.dt * step
 
     def get(self) -> Tuple[np.ndarray, np.ndarray]:
-        return np.array(self.msds), self.time
+        return np.array(self.msds).T, self.time
