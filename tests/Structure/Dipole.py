@@ -12,19 +12,14 @@ dcds = [
 ]
 universe = NAMDUniverse(psf, dcds)
 
+ag_list1 = universe.select_compounds("resname TIP3")
+ag_list2 = universe.select_compounds("not resname TIP3", compound="groups")
 
 analysis = Prof(
-    function=Projection(
-        CompoundDistance(
-            universe=universe,
-            selection1="resname TIP3",
-            selection2="not resname TIP3",
-            compound2="segments",
-        )
-    ),
-    bounds=(-50.0, 50.0)
+    function=Projection(CompoundDistance(ag_list1=ag_list1, ag_list2=ag_list2,)),
+    bounds=(-50.0, 50.0),
     bin_width=1.0,
-    weight_function=Orientation(Dipole(universe=universe, selection="resname TIP3")),
+    weight_function=Orientation(Dipole(ag_list=ag_list1)),
 )
 universe.add_analysis(analysis)
 

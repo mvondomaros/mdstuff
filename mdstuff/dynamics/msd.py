@@ -13,7 +13,7 @@ class SingleParticleMSD(Analysis):
 
     MODE = "OTA"
 
-    def __init__(self, ag: AtomGroup, n: int = 10, m: int = 4):
+    def __init__(self, ag: AtomGroup, n: int = 10, m: int = 2):
         super().__init__(universe=ag.universe)
 
         if not isinstance(n, int) or n <= 0:
@@ -33,6 +33,7 @@ class SingleParticleMSD(Analysis):
         # Work is completely done in finalize().
         pass
 
+    # TODO: rework start stop step
     def finalize(self, start: int = None, stop: int = None, step: int = None):
         # Get normalized start, stop, step values.
         start, stop, step = slice(start, stop, step).indices(
@@ -61,7 +62,7 @@ class SingleParticleMSD(Analysis):
                     self.ag.center_of_mass()
                     for _ in tqdm.tqdm(
                         self.universe.trajectory[start:stop:step],
-                        desc=f"MSD trajectory loop {i_block}/{self.n}",
+                        desc=f"MSD trajectory loop {i_block+1}/{self.n}",
                     )
                 ]
             )

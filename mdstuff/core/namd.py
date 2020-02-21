@@ -6,7 +6,7 @@ import MDAnalysis
 import numpy as np
 
 from .base import Universe
-from .errors import MDStuffError
+from .errors import MDStuffError, ParameterValueError
 
 
 # noinspection PyMissingConstructor
@@ -22,9 +22,7 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
 
     format = "CONTINUOUSDCD"
 
-    def __init__(
-        self, filenames: Sequence[str], lengths: Sequence[int], *args, **kwargs
-    ) -> None:
+    def __init__(self, filenames: Sequence[str], lengths: Sequence[int], **kwargs):
         """
         :param filenames: the sequence of file names
         :param lengths: the sequence of trajectory lengths
@@ -38,7 +36,7 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
         for f in filenames:
             try:
                 self.readers.append(
-                    MDAnalysis.coordinates.DCD.DCDReader(filename=f, *args, **kwargs)
+                    MDAnalysis.coordinates.DCD.DCDReader(filename=f, **kwargs)
                 )
             except OSError as e:
                 warnings.warn(
@@ -88,9 +86,11 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
             self.total_times[:traj_index].sum() + (sub_frame + 1) * self.dts[traj_index]
         )
 
+    # Needed because of ABC requirements, but not implemented.
     def Writer(self, *args, **kwargs):
         raise NotImplementedError
 
+    # Needed because of ABC requirements, but not implemented.
     @classmethod
     def parse_n_atoms(cls, *args, **kwargs):
         raise NotImplementedError
@@ -98,6 +98,8 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
     @property
     def dt(self) -> float:
         """
+        Returns the time step.
+
         :return: the time step
         """
         return self.dts[0]
@@ -144,9 +146,17 @@ class NAMDUniverse(Universe):
                 filenames = [dcd[0] if isinstance(dcd, tuple) else dcd for dcd in dcd]
                 lengths = [dcd[1] if isinstance(dcd, tuple) else None for dcd in dcd]
         else:
-            raise MDStuffError(f"invalid dcd specification: {dcd=}")
+            raise ParameterValueError(
+                name="dcd",
+                value=dcd,
+                allowed_values="a str/tuple/sequence of tuples (see doc-string for details)",
+            )
         if len(filenames) == 0:
-            raise MDStuffError("no DCD files specified")
+            raise ParameterValueError(
+                name="dcd",
+                value=dcd,
+                allowed_values="a str/tuple/sequence of tuples (see doc-string for details)",
+            )
         reader = ContinuousDCDReader(filenames, lengths)
 
         # Compare the number of atoms
@@ -157,8 +167,10 @@ class NAMDUniverse(Universe):
             )
         self.trajectory = reader
 
+    # Needed because of ABC requirements, but not implemented.
     def __setstate__(self, state):
         raise NotImplementedError
 
+    # Needed because of ABC requirements, but not implemented.
     def __getstate__(self):
         raise NotImplementedError

@@ -6,8 +6,7 @@ from typing import Tuple
 
 import numpy as np
 
-from .. import MDStuffError, Universe
-from ..core import Analysis
+from ..core import Analysis, MDStuffError, ParameterValueError, Universe
 
 
 class Bins:
