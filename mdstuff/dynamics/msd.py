@@ -24,7 +24,7 @@ class MSD(Analysis):
         super().__init__(universe=ag_list[0].universe)
 
         self.ag_list = ag_list
-        self.length = len(self.universe.trajectory) // 2 if length is None else length
+        self.length = length
         self.msd = None
         self.time = None
 
@@ -32,15 +32,26 @@ class MSD(Analysis):
         # Work is completely done in finalize().
         pass
 
-    def finalize(self, start: int, stop: int, step: int):
-        n = len(self.ag_list)
+    def finalize(self, start: int = None, stop: int = None, step: int = None):
+        # Normalize the slice arguments.
+        stat, stop, step = slice(start, stop, step).indices(
+            len(self.universe.trajectory)
+        )
+        # Get the maximum number of trajectory steps.
+        nr_steps = (stop - start - 1) // step
+        # Determine the length of the correlation function. If self.length is None, use half of the requested number
+        # of frames, otherwise make sure that length is not larger than the actual number of frames.
+        length = nr_steps // 2 if self.length is None else min(self.length, nr_steps)
+
+        # Compute the MSDs for each compound.
         msds = []
-        for i_loop, ag in enumerate(self.ag_list, start=1):
+        nr_compounds = len(self.ag_list)
+        for i_compound, ag in enumerate(self.ag_list, start=1):
             # Get an array of positions
             r = []
             for ft_sq in tqdm.tqdm(
                 self.universe.trajectory[start:stop:step],
-                desc=f"MSD trajectory loop {i_loop}/{n}",
+                desc=f"MSD trajectory loop {i_compound}/{nr_compounds}",
                 leave=False,
             ):
                 r.append(ag.center_of_mass())

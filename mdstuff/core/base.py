@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import abc
 import itertools
-import sys
 from typing import Any, Tuple
 
 import MDAnalysis
@@ -10,7 +9,7 @@ import numpy as np
 import tqdm
 from MDAnalysis.core.groups import AtomGroup
 
-from .errors import MDStuffError
+from .errors import MDStuffError, UniverseError
 
 
 class Analysis:
@@ -18,6 +17,9 @@ class Analysis:
     Base analysis class.
     """
 
+    # MODE flag.
+    #   "RA": running analysis, an analysis that needs update() to perform it's work
+    #   "OTA": one-time analysis: an analysis, that does not depend on update() being called
     MODE = "RA"
 
     def __init__(self, universe: Universe):
@@ -31,7 +33,7 @@ class Analysis:
 
     @abc.abstractmethod
     def finalize(self, start: int, stop: int, step: int):
-        """Finalize the anaylis."""
+        """Finalize the analysis."""
         pass
 
     @abc.abstractmethod
@@ -48,17 +50,32 @@ class Universe(MDAnalysis.Universe):
     """
     Base universe class.
 
-    This is an MDAnalysis universe which keeps track of analyses to perform.
+    This is an MDAnalysis universe which keeps track of analyses to perform. Unlike in MDAnalysis, this class is a
+    Singleton.
     """
 
+    # Singleton instance reference.
+    instance = None
+
+    # A list of valid compound specifiers.
+    _VALID_COMPOUNDS = [None, "residues", "molecules", "fragments", "segments"]
+
     def __init__(self, *args, **kwargs):
+        # Check if there's already another universe.
+        if Universe.instance is not None:
+            raise UniverseError
+
+        Universe.instance = self
         super().__init__(*args, **kwargs)
 
+        # The list of analyses to perform.
         self.analyses = []
 
+    # Needed because of ABC requirements, but not implemented.
     def __getstate__(self, *args, **kwargs):
         raise NotImplementedError
 
+    # Needed because of ABC requirements, but not implemented.
     def __setstate__(self, *args, **kwargs):
         raise NotImplementedError
 
@@ -68,10 +85,7 @@ class Universe(MDAnalysis.Universe):
 
         :param analysis: the analysis
         """
-        if analysis.universe == self:
-            self.analyses.append(analysis)
-        else:
-            raise MDStuffError(f"analysis works in a different universe")
+        self.analyses.append(analysis)
 
     def run_analyses(self, start: int = 0, stop: int = -1, step: int = 1):
         """
@@ -81,7 +95,11 @@ class Universe(MDAnalysis.Universe):
         :param stop: optional, the last time step
         :param step: optional, the time step increment
         """
-        # Check if we can skip the main loop, because all analyses are OTAs.
+        # Nothing to do.
+        if len(self.analyses) == 0:
+            return
+
+        # Run update() for each analysis, but only if there's actually a running analysis.
         modes = [analysis.MODE for analysis in self.analyses]
         if np.any(np.array(modes) == "RA"):
             for _ in tqdm.tqdm(
@@ -90,8 +108,11 @@ class Universe(MDAnalysis.Universe):
                 for analysis in self.analyses:
                     analysis.update()
 
+        # Run finalize() for each analysis.
         for analysis in tqdm.tqdm(self.analyses, desc="analysis finalization loop"):
             analysis.finalize(start=start, stop=stop, step=step)
+
+        # Clear the list of analyses.
         self.analyses = []
 
     def select_atom_pairs(
@@ -117,12 +138,7 @@ class Universe(MDAnalysis.Universe):
         :param compound: optional, the compound specifier for mode="between" or mode="within"
         :return:
         """
-        if compound is not None and compound not in [
-            "residues",
-            "molecules",
-            "fragments",
-            "segments",
-        ]:
+        if compound not in self._VALID_COMPOUNDS:
             raise MDStuffError(f"invalid parameter value: {compound=}")
         if mode not in ["zip", "product", "within", "between"]:
             raise MDStuffError(f"invalid parameter value: {mode=}")
