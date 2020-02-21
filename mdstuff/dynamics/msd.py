@@ -10,6 +10,9 @@ from ..core.helpers import same_universe
 
 
 class MSD(Analysis):
+
+    MODE = "OTA"
+
     def __init__(self, ag_list: List[AtomGroup], length: int = None):
         if not same_universe(*ag_list):
             raise MDStuffError(

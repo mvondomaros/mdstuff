@@ -18,6 +18,8 @@ class Analysis:
     Base analysis class.
     """
 
+    MODE = "RA"
+
     def __init__(self, universe: Universe):
         """Set the universe."""
         self.universe = universe
@@ -79,9 +81,16 @@ class Universe(MDAnalysis.Universe):
         :param stop: optional, the last time step
         :param step: optional, the time step increment
         """
-        for _ in tqdm.tqdm(self.trajectory[start:stop:step], desc="main trajectory loop"):
-            for analysis in self.analyses:
-                analysis.update()
+        # Check if we can skip the main loop, because all analyses are OTAs.
+
+        modes = [analysis.MODE for analysis in self.analyses]
+        if np.any(np.array(modes) == "RA"):
+            for _ in tqdm.tqdm(
+                self.trajectory[start:stop:step], desc="main trajectory loop"
+            ):
+                for analysis in self.analyses:
+                    analysis.update()
+
         for analysis in tqdm.tqdm(self.analyses, desc="analysis finalization loop"):
             analysis.finalize(start=start, stop=stop, step=step)
         self.analyses = []
