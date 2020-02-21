@@ -2,16 +2,20 @@
   <dictionary name="Michael">
     <words>
       <w>antisymmetrize</w>
+      <w>autocorr</w>
+      <w>autocorrelation</w>
       <w>continuousdcd</w>
       <w>cython</w>
       <w>dcds</w>
       <w>discretize</w>
       <w>dprof</w>
+      <w>dtype</w>
       <w>gouraud</w>
       <w>intra</w>
       <w>matplotlib</w>
       <w>mdstuff</w>
       <w>namd</w>
+      <w>nextpow</w>
       <w>resname</w>
       <w>squalene</w>
       <w>symmetrize</w>

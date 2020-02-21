@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import itertools
+import sys
 from typing import Any, Tuple
 
 import MDAnalysis
@@ -14,7 +15,7 @@ from .errors import MDStuffError
 
 class Analysis:
     """
-    Base analysis class. The update() method will be called for every frame by Universe.run_analyses().
+    Base analysis class.
     """
 
     def __init__(self, universe: Universe):
@@ -24,6 +25,11 @@ class Analysis:
     @abc.abstractmethod
     def update(self):
         """Update the analysis."""
+        pass
+
+    @abc.abstractmethod
+    def finalize(self, start: int, stop: int, step: int):
+        """Finalize the anaylis."""
         pass
 
     @abc.abstractmethod
@@ -38,14 +44,14 @@ class Analysis:
 
 class Universe(MDAnalysis.Universe):
     """
-    The MDStuff universe: an MDAnalysis universe that allows running multiple analysis during one iteration over the
-    trajectory. Also provides access to the select_atom_pairs() method.
+    Base universe class.
+
+    This is an MDAnalysis universe which keeps track of analyses to perform.
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # The (initially emtpy) list of analyses.
         self.analyses = []
 
     def __getstate__(self, *args, **kwargs):
@@ -73,9 +79,12 @@ class Universe(MDAnalysis.Universe):
         :param stop: optional, the last time step
         :param step: optional, the time step increment
         """
-        for _ in tqdm.tqdm(self.trajectory[start:stop:step]):
+        for _ in tqdm.tqdm(self.trajectory[start:stop:step], desc="main trajectory loop"):
             for analysis in self.analyses:
                 analysis.update()
+        for analysis in tqdm.tqdm(self.analyses, desc="analysis finalization loop"):
+            analysis.finalize(start=start, stop=stop, step=step)
+        self.analyses = []
 
     def select_atom_pairs(
         self,
@@ -83,7 +92,6 @@ class Universe(MDAnalysis.Universe):
         selection2: str,
         mode: str = "zip",
         compound: str = "residues",
-        updating=False,
     ) -> Tuple[AtomGroup, AtomGroup]:
         """
         Select pairs of atoms. Returns two atom lists of equal length, corresponding to the first and second
@@ -99,7 +107,6 @@ class Universe(MDAnalysis.Universe):
             "between": return unique pairs of atoms between different compounds from the cartesian product of both
                 selections
         :param compound: optional, the compound specifier for mode="between" or mode="within"
-        :param updating: must be False, updating selections are not supported
         :return:
         """
         if compound is not None and compound not in [
@@ -111,10 +118,6 @@ class Universe(MDAnalysis.Universe):
             raise MDStuffError(f"invalid parameter value: {compound=}")
         if mode not in ["zip", "product", "within", "between"]:
             raise MDStuffError(f"invalid parameter value: {mode=}")
-        if updating is True:
-            raise MDStuffError(
-                f"atom pair selection is static; updates are not permitted"
-            )
 
         # Check if there are any atoms selected at all.
         ag1 = self.select_atoms(selection1)
@@ -178,10 +181,7 @@ class Universe(MDAnalysis.Universe):
         else:
             raise NotImplementedError
         i1, i2 = np.transpose(index_list)
-        return (
-            AtomGroup(i1, self),
-            AtomGroup(i2, self),
-        )
+        return AtomGroup(i1, self), AtomGroup(i2, self)
 
     def select_atom_triplets(
         self,
@@ -190,7 +190,6 @@ class Universe(MDAnalysis.Universe):
         selection: str,
         mode: str = "zip",
         compound: str = "residues",
-        updating=False,
     ) -> Tuple[
         AtomGroup, AtomGroup, AtomGroup,
     ]:
@@ -214,10 +213,6 @@ class Universe(MDAnalysis.Universe):
             raise MDStuffError(f"invalid parameter value: {compound=}")
         if mode not in ["zip", "product", "within", "between"]:
             raise MDStuffError(f"invalid parameter value: {mode=}")
-        if updating is True:
-            raise MDStuffError(
-                f"atom pair selection is static; updates are not permitted"
-            )
 
         # Check if there are any atoms selected at all.
         ag3 = self.select_atoms(selection)
@@ -251,4 +246,20 @@ class Universe(MDAnalysis.Universe):
         else:
             raise NotImplementedError
         i1, i2, i3 = np.transpose(index_list)
-        return (AtomGroup(i1, self), AtomGroup(i2, self), AtomGroup(i3, self))
+        return AtomGroup(i1, self), AtomGroup(i2, self), AtomGroup(i3, self)
+
+    def select_compounds(self, selection: str, compound: str = "residues"):
+        ag_list = []
+        if compound == "group":
+            ag = self.select_atoms(selection)
+            if len(ag) != 0:
+                ag_list.append(ag)
+        elif compound in ["residues", "molecules", "fragments", "segments"]:
+            for c in getattr(self, compound):
+                ag = c.atoms.select_atoms(selection)
+                if len(ag) != 0:
+                    ag_list.append(ag)
+        else:
+            raise MDStuffError(f"invalid parameter argument: {compound=}")
+
+        return ag_list

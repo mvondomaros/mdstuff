@@ -22,7 +22,7 @@ analysis = Prof(
             compound2="segments",
         )
     ),
-    bounds=(-50.0, 50.0),
+    bounds=(-50.0, 50.0)
     bin_width=1.0,
     weight_function=Orientation(Dipole(universe=universe, selection="resname TIP3")),
 )

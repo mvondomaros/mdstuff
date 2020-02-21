@@ -17,3 +17,15 @@ def to_list(obj: object) -> List:
         return list(obj)
     else:
         return [obj]
+
+
+def same_universe(*ag_list) -> bool:
+    n = len(ag_list)
+    if n == 0 or n == 1:
+        return True
+    else:
+        u = ag_list[0].universe
+        for ag in ag_list[1:]:
+            if ag.universe != u:
+                return False
+        return True

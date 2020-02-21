@@ -1,55 +1,52 @@
-from collections import deque
+from typing import List, Tuple
 
-import MDAnalysis
 import numpy as np
 import tqdm
+from MDAnalysis.core.groups import AtomGroup
 
-from mdstuff_old.core.errors import MDStuffError
+from .helpers import msd_fft
+from ..core import Analysis, MDStuffError
+from ..core.helpers import same_universe
 
 
-def single_particle_msd(
-    universe: MDAnalysis.Universe, selection: str, skip: int = 0, length: int = None,
-) -> np.ndarray:
-    """
-    Compute the mean squared displacement (MSD) of a single particle.
-
-    :param universe: an MDAnalysis Universe
-    :param selection: the particle selection string
-    :param skip: optional, skip this number of trajectory steps before starting the computation
-    :param length: optional, the length of the MSD time series in trajectory steps; defaults to 1/2 of the trajectory
-    :return: a (length, 2) numpy array containing time and MSD columns
-    """
-    if length is None:
-        length = len(universe.trajectory) // 2
-    else:
-        if length > len(universe.trajectory):
+class MSD(Analysis):
+    def __init__(self, ag_list: List[AtomGroup], length: int = None):
+        if not same_universe(*ag_list):
             raise MDStuffError(
-                f"length {length} exceeds the trajectory length of {len(universe.trajectory)}"
+                f"the atom group list contains atom groups with different universes"
             )
+        n = len(ag_list)
+        if n == 0:
+            raise MDStuffError(f"the atom group list is empty")
+        super().__init__(universe=ag_list[0].universe)
 
-    # Select atoms.
-    sel = universe.select_atoms(selection)
-    if sel.n_atoms == 0:
-        raise MDStuffError(f"empty selection `{selection}`")
+        self.ag_list = ag_list
+        self.length = length
+        self.msd = None
+        self.time = None
 
-    # Allocate arrays for time and total squared displacement.
-    time = np.arange(length) * universe.trajectory.dt
-    tsd = np.zeros(length)
+    def update(self):
+        # Work is completely done in finalize().
+        pass
 
-    # A buffer containing the last positions.
-    x0 = deque(maxlen=length)
+    def finalize(self, start: int, stop: int, step: int):
+        n = len(self.ag_list)
+        msds = []
+        for i_loop, ag in enumerate(self.ag_list, start=1):
+            # Get an array of positions
+            r = []
+            for ft_sq in tqdm.tqdm(
+                self.universe.trajectory[start:stop:step],
+                desc=f"MSD trajectory loop {i_loop}/{n}",
+                leave=False,
+            ):
+                r.append(ag.center_of_mass())
+            r = np.array(r)
 
-    # Loop over all frames.
-    for _ in tqdm.tqdm(universe.trajectory[skip:]):
-        x = sel.atoms.center_of_mass()
-        x0.appendleft(x)
-        # Compute and accumulate the squared displacement.
-        sd = np.sum((x - x0) ** 2, axis=-1)
-        tsd[: sd.size] += sd
+            msds.extend([msd_fft(r[:, i], length=self.length) for i in range(3)])
 
-    # Normalize.
-    msd = tsd / (
-        np.full(length, fill_value=universe.trajectory.n_frames) - np.arange(length)
-    )
+        self.msd = np.mean(msds, axis=0)
+        self.time = np.arange(self.msd.size) * self.universe.trajectory.dt * step
 
-    return np.column_stack([time, msd])
+    def get(self) -> Tuple[np.ndarray, np.ndarray]:
+        return self.msd, self.time

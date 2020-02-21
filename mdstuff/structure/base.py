@@ -144,6 +144,9 @@ class Histogram(Analysis):
         counts, _ = np.histogram(values, bins=self.bins.edges, weights=weights)
         self.counts += counts
 
+    def finalize(self, start: int, stop: int, step: int):
+        pass
+
     def get(self, centers: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
         Return the counts and the bin edges.
@@ -224,6 +227,9 @@ class Histogram2D(Analysis):
             weights=weights,
         )
         self.counts += counts
+
+    def finalize(self, start: int, stop: int, step: int):
+        pass
 
     def get(self, centers: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """

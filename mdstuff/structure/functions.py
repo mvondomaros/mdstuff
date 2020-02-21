@@ -1,3 +1,5 @@
+from typing import List
+
 import MDAnalysis
 import numpy as np
 from MDAnalysis.core.groups import AtomGroup
@@ -128,92 +130,47 @@ class Angle(StructureFunction):
 class CompoundDistance(StructureFunction):
     def __init__(
         self,
-        universe: Universe,
-        selection1: str,
-        selection2: str,
-        compound1="residues",
-        compound2="residues",
-        mode="product",
+        ag_list1: List[AtomGroup],
+        ag_list2: List[AtomGroup],
         use_mic: bool = True,
     ):
-        super().__init__(universe)
-
-        if compound1 not in [
-            "residues",
-            "molecules",
-            "fragments",
-            "segments",
-        ]:
-            raise MDStuffError(f"invalid parameter value: {compound1=}")
-        if compound2 not in [
-            "residues",
-            "molecules",
-            "fragments",
-            "segments",
-        ]:
-            raise MDStuffError(f"invalid parameter value: {compound2=}")
-
-        if mode not in ["zip", "product"]:
-            raise MDStuffError(f"invalid parameter argument: {mode=}")
-        self.mode = mode
-
-        self.ag1_list = []
-        for c in getattr(universe, compound1):
-            ag = c.atoms.select_atoms(selection1)
-            if len(ag) != 0:
-                self.ag1_list.append(ag)
-        n1 = len(self.ag1_list)
+        n1 = len(ag_list1)
+        n2 = len(ag_list2)
+        if n1 != n2:
+            raise MDStuffError(
+                f"the number of compounds in ag_list1 ({n1}) does not match "
+                f"the number of compounds in ag_list2 ({n2})"
+            )
         if n1 == 0:
-            raise MDStuffError(f"selection1 did not return any compounds")
+            raise MDStuffError(f"the atom group lists are empty")
+        for ag1, ag2 in zip(ag_list1, ag_list2):
+            if ag1.universe != ag2.universe:
+                raise MDStuffError(f"universe mismatch between atom group list members")
 
-        self.ag2_list = []
-        for c in getattr(universe, compound2):
-            ag = c.atoms.select_atoms(selection2)
-            if len(ag) != 0:
-                self.ag2_list.append(ag)
-        n2 = len(self.ag2_list)
-        if n2 == 0:
-            raise MDStuffError(f"selection2 did not return any compounds")
+        super().__init__(ag_list1[0].universe)
 
+        self.ag_list1 = ag_list1
+        self.ag_list2 = ag_list2
         self.use_mic = use_mic
 
         self._shape = (n1, 3)
 
     def __call__(self, *args, **kwargs):
-        x1 = np.array([ag.center_of_mass() for ag in self.ag1_list])
-        x2 = np.array([ag.center_of_mass() for ag in self.ag2_list])
-        if self.mode == "zip":
-            d = x2 - x1
-        elif self.mode == "product":
-            d = (x1[:, None] - x2[None, :]).reshape(-1, 3)
-        else:
-            raise NotImplementedError
+        x1 = np.array([ag.center_of_mass() for ag in self.ag_list1])
+        x2 = np.array([ag.center_of_mass() for ag in self.ag_list2])
+        d = x2 - x1
         if self.use_mic:
             apply_mic(d, self.universe.dimensions[:3])
         return d
 
 
 class Dipole(StructureFunction):
-    def __init__(self, universe: Universe, selection: str, compound="residues"):
-        super().__init__(universe)
+    def __init__(self, ag_list: List[AtomGroup]):
+        super().__init__(ag_list[0].universe)
 
-        if compound not in [
-            "residues",
-            "molecules",
-            "fragments",
-            "segments",
-        ]:
-            raise MDStuffError(f"invalid parameter value: {compound=}")
+        self.ag_list = ag_list
 
-        self.ag_list = []
-        for c in getattr(universe, compound):
-            ag = c.atoms.select_atoms(selection)
-            if len(ag) != 0:
-                self.ag_list.append(ag)
-        n = len(self.ag_list)
-        if n == 0:
-            raise MDStuffError(f"no compounds selected")
-        self._shape = (n, 3)
+        self._shape = (len(ag_list), 3)
 
     def __call__(self, *args, **kwargs):
         x = np.array([ag.positions for ag in self.ag_list])
