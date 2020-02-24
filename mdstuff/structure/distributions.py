@@ -1,3 +1,4 @@
+import sys
 from typing import Tuple, Union
 
 import numpy as np
@@ -76,14 +77,14 @@ class PDens2D(Histogram2D):
         y_mode: str = "linear",
     ) -> None:
         """
-        :param x_function: the structure function for the x-channel
-        :param x_bounds: the lower and upper bounds of the x-channel
-        :param x_bin_width: the bin width of the x-channel
-        :param y_function: the structure function for the y-channel
-        :param y_bounds:  the lower and upper bounds of the y-channel
-        :param y_bin_width: the bin width of the y-channel
-        :param x_mode: optional, "linear", "radial", or "angular": the normalization scheme for the x-channel
-        :param y_mode: optional, "linear", "radial", or "angular": the normalization scheme for the y-channel
+        :param x_function: the structure function for the x-axis
+        :param x_bounds: the lower and upper bounds for the x-axis
+        :param x_bin_width: the bin width for the x-axis
+        :param y_function: the structure function for the y-axis
+        :param y_bounds:  the lower and upper bounds for the y-axis
+        :param y_bin_width: the bin width for the y-axis
+        :param x_mode: optional, "linear", "radial", or "angular": the normalization scheme for the x-axis
+        :param y_mode: optional, "linear", "radial", or "angular": the normalization scheme for the y-axis
         """
         super().__init__(
             x_function=x_function,
@@ -157,72 +158,76 @@ class CorrFunc2D(PDens2D):
 
 
 class Prof(Histogram):
-    """A one-dimensional profile."""
+    """
+    A one-dimensional profile: average values of some property y evaluated in bins corresponding to a property x.
+    Most often x is a distance/position.
+    """
 
     def __init__(
         self,
-        function: StructureFunction,
-        bounds: Tuple[float, float],
-        bin_width: float,
-        weight_function: StructureFunction,
-    ) -> None:
+        x_function: StructureFunction,
+        x_bounds: Tuple[float, float],
+        x_bin_width: float,
+        y_function: StructureFunction,
+    ):
         """
-        :param function: the structure function that defines the histogram
-        :param bounds: the lower and upper bounds of the histogram
-        :param bin_width: the bin width of the histogram
-        :param weight_function: the structure function that computes the weights
+        :param x_function: the structure function for the x-axis
+        :param x_bounds: the lower and upper bounds for the axis
+        :param x_bin_width: the bin width for the x-axis
+        :param y_function: the structure function for the y-axis
         """
         super().__init__(
-            function=function,
-            bounds=bounds,
-            bin_width=bin_width,
-            weight_function=weight_function,
+            function=x_function, bounds=x_bounds, bin_width=x_bin_width,
         )
-        self.nr_updates = 0
+        self.x_function = x_function
+        self.y_function = y_function
+        self.values = np.zeros_like(self.counts)
 
     def update(self) -> None:
         """
-        Add weighted values to the histogram.
         """
-        super().update()
-        self.nr_updates += 1
+        x = self.x_function()
+        y = self.y_function()
+        counts, _ = np.histogram(x, bins=self.bins.edges)
+        values, _ = np.histogram(x, bins=self.bins.edges, weights=y)
+        self.counts += counts
+        self.values += values
 
     def get(self, centers: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Return the probability densities and the bins edges.
-
-        :parameter centers: optional, return the bin centers instead of the bin edges
-        :return: the probability densities and the bin edges/centers
         """
         counts, bins = super().get(centers=centers)
-        if self.nr_updates > 0:
-            counts /= self.nr_updates
-        return counts, bins
+        values = self.values.copy()
+        np.true_divide(values, counts, out=values, where=self.counts > 0.0)
+        return values, bins
 
 
 class DProf(Prof):
-    """A one-dimensional density-profile."""
+    """
+    A one-dimensional density-profile: average values of some property y *per volume* evaluated in bins corresponding
+    to a property x. Most often x is a distance/position.
+    """
 
     def __init__(
         self,
-        function: StructureFunction,
-        bounds: Tuple[float, float],
-        bin_width: float,
-        weight_function: StructureFunction,
+        x_function: StructureFunction,
+        x_bounds: Tuple[float, float],
+        x_bin_width: float,
+        y_function: StructureFunction,
         mode: str = "z",
     ) -> None:
         """
-        :param function: the structure function that defines the histogram
-        :param bounds: the lower and upper bounds of the histogram
-        :param bin_width: the bin width of the histogram
-        :param weight_function: the structure function that computes the weights
+        :param x_function: the structure function for the x-axis
+        :param x_bounds: the lower and upper bounds for the x-axis
+        :param x_bin_width: the bin width for the x-axis
+        :param y_function: the structure function for the y-axis
         :param mode: optional, "x", "y", or "z" the normalization scheme
         """
         super().__init__(
-            function=function,
-            bounds=bounds,
-            bin_width=bin_width,
-            weight_function=weight_function,
+            x_function=x_function,
+            x_bounds=x_bounds,
+            x_bin_width=x_bin_width,
+            y_function=y_function,
         )
 
         if mode not in "xyz":
@@ -231,7 +236,6 @@ class DProf(Prof):
 
     def update(self) -> None:
         """
-        Add weighted values to the histogram.
         """
         if self.mode == "x":
             volume = (
@@ -254,8 +258,9 @@ class DProf(Prof):
         else:
             raise NotImplementedError(f"{self.mode=}")
 
-        values = self.function()
-        weights = self.weight_function() / volume
-        counts, _ = np.histogram(values, bins=self.bins.edges, weights=weights)
+        x = self.x_function()
+        y = self.y_function() / volume
+        counts, _ = np.histogram(x, bins=self.bins.edges)
+        values, _ = np.histogram(x, bins=self.bins.edges, weight=y)
         self.counts += counts
-        self.nr_updates += 1
+        self.values += values

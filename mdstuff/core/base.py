@@ -17,11 +17,6 @@ class Analysis:
     Base analysis class.
     """
 
-    # MODE flag.
-    #   "RA": running analysis, an analysis that needs update() to perform it's work
-    #   "OTA": one-time analysis: an analysis, that does not depend on update() being called
-    MODE = "RA"
-
     def __init__(self, universe: Universe):
         """Set the universe."""
         self.universe = universe
@@ -32,7 +27,7 @@ class Analysis:
         pass
 
     @abc.abstractmethod
-    def finalize(self, start: int, stop: int, step: int):
+    def finalize(self):
         """Finalize the analysis."""
         pass
 
@@ -44,6 +39,17 @@ class Analysis:
         :return: the results
         """
         pass
+
+
+class OneTimeAnalysis(Analysis, abc.ABC):
+    """
+    Base class for one-time analyses: analyses that do not need to be updated continuously, but that do
+    all their work in final(). The update() method won't be called for these analyses.
+    """
+
+    def update(self):
+        """Should never be called."""
+        raise NotImplementedError
 
 
 class Universe(MDAnalysis.Universe):
@@ -100,8 +106,8 @@ class Universe(MDAnalysis.Universe):
             return
 
         # Run update() for each analysis, but only if there's actually a running analysis.
-        modes = [analysis.MODE for analysis in self.analyses]
-        if np.any(np.array(modes) == "RA"):
+        is_ota = [isinstance(analysis, OneTimeAnalysis) for analysis in self.analyses]
+        if not np.all(is_ota):
             for _ in tqdm.tqdm(
                 self.trajectory[start:stop:step], desc="main trajectory loop"
             ):
@@ -110,7 +116,7 @@ class Universe(MDAnalysis.Universe):
 
         # Run finalize() for each analysis.
         for analysis in tqdm.tqdm(self.analyses, desc="analysis finalization loop"):
-            analysis.finalize(start=start, stop=stop, step=step)
+            analysis.finalize()
 
         # Clear the list of analyses.
         self.analyses = []

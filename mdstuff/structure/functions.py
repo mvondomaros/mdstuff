@@ -6,7 +6,7 @@ from MDAnalysis.core.groups import AtomGroup
 
 from .base import StructureFunction
 from .helpers import apply_mic
-from .. import MDStuffError, Universe
+from .. import MDStuffError
 
 
 # TODO: Comments.
@@ -176,5 +176,5 @@ class Dipole(StructureFunction):
         x = np.array([ag.positions for ag in self.ag_list])
         x0 = np.array([ag.center_of_mass() for ag in self.ag_list])
         q = np.array([ag.charges for ag in self.ag_list])
-        mu = np.sum(q * (x - x0), axis=1)
+        mu = np.sum(q.T * (x - x0), axis=1)
         return mu

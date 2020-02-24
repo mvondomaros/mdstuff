@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import abc
+import sys
 import warnings
 from typing import Tuple
 
 import numpy as np
 
-from ..core import Analysis, MDStuffError, ParameterValueError, Universe
+from ..core import Analysis, MDStuffError, Universe
 
 
 class Bins:
@@ -102,45 +103,27 @@ class Histogram(Analysis):
         function: StructureFunction,
         bounds: Tuple[float, float],
         bin_width: float,
-        weight_function: StructureFunction = None,
     ):
         """
         :param function: a structure function
         :param bounds: the lower and upper bounds of the histogram
         :param bin_width: the bin width of the histogram
-        :param weight_function: optional, a structure function returning weights
         """
         super().__init__(universe=function.universe)
 
-        if (
-            weight_function is not None
-            and weight_function.universe != function.universe
-        ):
-            raise MDStuffError(
-                f"function and weight function work with different universes"
-            )
         if len(function.shape) != 1:
             raise MDStuffError(f"function does not return a one-dimensional array")
-        if weight_function is not None and len(weight_function.shape) != 1:
-            raise MDStuffError(
-                f"weight function does not return a one-dimensional array"
-            )
 
         self.function = function
         self.bins = Bins(bounds=bounds, bin_width=bin_width)
         self.counts = np.zeros_like(self.bins.centers)
-        self.weight_function = weight_function
 
     def update(self) -> None:
         """
         Add values to the histogram.
         """
         values = self.function()
-        if self.weight_function is None:
-            weights = None
-        else:
-            weights = self.weight_function()
-        counts, _ = np.histogram(values, bins=self.bins.edges, weights=weights)
+        counts, _ = np.histogram(values, bins=self.bins.edges)
         self.counts += counts
 
     def finalize(self, start: int, stop: int, step: int):
@@ -170,35 +153,21 @@ class Histogram2D(Analysis):
         y_function: StructureFunction,
         y_bounds: Tuple[float, float],
         y_bin_width: float,
-        weight_function: StructureFunction = None,
     ) -> None:
         """
-        :param x_function: the function to be evaluated for the x-channel
-        :param x_bounds: the lower and upper bounds of the x-channel
-        :param x_bin_width: the bin width of the x-channel
-        :param y_function: the function to be evaluated for the y-channel
-        :param y_bounds:  the lower and upper bounds of the y-channel
-        :param y_bin_width: the bin width of the y-channel
+        :param x_function: the function to be evaluated for the x-axis
+        :param x_bounds: the lower and upper bounds for the x-axis
+        :param x_bin_width: the bin width for the x-axis
+        :param y_function: the function to be evaluated for the y-axis
+        :param y_bounds:  the lower and upper bounds for the y-axis
+        :param y_bin_width: the bin width for the y-axis
         """
-        if x_function.universe != y_function.universe:
-            raise MDStuffError(f"x- and y-functions work with different universes")
-        if (
-            weight_function is not None
-            and weight_function.universe != x_function.universe
-        ):
-            raise MDStuffError(f"weight function works with a different universe")
         if len(x_function.shape) != 1:
             raise MDStuffError(f"x-function does not return a one-dimensional array")
         if len(y_function.shape) != 1:
             raise MDStuffError(f"y-function does not return a one-dimensional array")
-        if weight_function is not None and len(weight_function.shape) != 1:
-            raise MDStuffError(
-                f"weight function does not return a one-dimensional array"
-            )
         if x_function.shape != y_function.shape:
             raise MDStuffError(f"x- and y-function return different number of values")
-        if weight_function is not None and weight_function.shape != x_function.shape:
-            raise MDStuffError(f"weight function returns different number of values")
 
         super().__init__(universe=x_function.universe)
 
@@ -207,7 +176,6 @@ class Histogram2D(Analysis):
         self.y_function = y_function
         self.y_bins = Bins(bounds=y_bounds, bin_width=y_bin_width)
         self.counts = np.zeros((self.x_bins.nr, self.y_bins.nr))
-        self.weight_function = weight_function
 
     def update(self,) -> None:
         """
@@ -215,15 +183,8 @@ class Histogram2D(Analysis):
         """
         x_values = self.x_function()
         y_values = self.y_function()
-        if self.weight_function is None:
-            weights = None
-        else:
-            weights = self.weight_function()
         counts, *_ = np.histogram2d(
-            x=x_values,
-            y=y_values,
-            bins=(self.x_bins.edges, self.y_bins.edges),
-            weights=weights,
+            x=x_values, y=y_values, bins=(self.x_bins.edges, self.y_bins.edges),
         )
         self.counts += counts
 

@@ -14,10 +14,10 @@ universe = NAMDUniverse(psf, dcds)
 
 ag = universe.select_atoms("not resname TIP3")
 analysis = DProf(
-    function=Projection(Position(ag=ag)),
-    bounds=(-50.0, 50.0),
-    bin_width=0.5,
-    weight_function=Charge(ag=ag),
+    x_function=Projection(Position(ag=ag)),
+    x_bounds=(-50.0, 50.0),
+    x_bin_width=0.5,
+    y_function=Charge(ag=ag),
 )
 universe.add_analysis(analysis)
 
