@@ -44,9 +44,9 @@ class SingleParticleMSD(OneTimeAnalysis):
                 )
             ]
         )
-        msd = [msd_fft(r[:, i], length=self.corr_len) for i in range(3)]
+        msds = [msd_fft(r[:, i], length=self.corr_len) for i in range(3)]
 
-        self.msd = np.mean(msd, axis=0)
+        self.msd = np.sum(msds, axis=0)
         self.time = np.arange(self.corr_len) * self.universe.trajectory.dt * self.step
 
     def get(self) -> Tuple[np.ndarray, np.ndarray]:
