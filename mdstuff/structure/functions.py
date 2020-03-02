@@ -176,5 +176,5 @@ class Dipole(StructureFunction):
         x = np.array([ag.positions for ag in self.ag_list])
         x0 = np.array([ag.center_of_mass() for ag in self.ag_list])
         q = np.array([ag.charges for ag in self.ag_list])
-        mu = np.sum(q.T * (x - x0), axis=1)
+        mu = np.sum(q.T*x, axis=1)
         return mu

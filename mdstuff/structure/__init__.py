@@ -8,18 +8,28 @@ from .base import (
     StructureFunction,
     VectorReduction,
 )
-from .distributions import CorrFunc2D, DProf, PDens, PDens2D, Prof
+from .distributions import (
+    AverageProfile,
+    CorrFunc2D,
+    DensityProfile,
+    PDens,
+    PDens2D,
+    Profile,
+)
+from .free_volume import FreeVolumeProfile
 from .functions import Angle, Charge, CompoundDistance, Dipole, Distance, Mass, Position
 
 __all__ = [
     "Angle",
+    "AverageProfile",
     "Bins",
     "Charge",
     "CompoundDistance",
     "CorrFunc2D",
     "Dipole",
     "Distance",
-    "DProf",
+    "DensityProfile",
+    "FreeVolumeProfile",
     "Histogram",
     "Histogram2D",
     "Magnitude",
@@ -28,7 +38,7 @@ __all__ = [
     "PDens",
     "PDens2D",
     "Position",
-    "Prof",
+    "Profile",
     "Projection",
     "StructureFunction",
     "VectorReduction",

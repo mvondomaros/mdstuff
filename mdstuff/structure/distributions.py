@@ -157,7 +157,51 @@ class CorrFunc2D(PDens2D):
             return counts, self.x_bins.edges.copy(), self.y_bins.edges.copy()
 
 
-class Prof(Histogram):
+class Profile(Histogram):
+    """
+    A one-dimensional profile: values of some property y accumulated in bins corresponding to a property x.
+    Most often x is a distance/position.
+    """
+
+    def __init__(
+        self,
+        x_function: StructureFunction,
+        x_bounds: Tuple[float, float],
+        x_bin_width: float,
+        y_function: StructureFunction,
+    ):
+        """
+        :param x_function: the structure function for the x-axis
+        :param x_bounds: the lower and upper bounds for the axis
+        :param x_bin_width: the bin width for the x-axis
+        :param y_function: the structure function for the y-axis
+        """
+        super().__init__(
+            function=x_function, bounds=x_bounds, bin_width=x_bin_width,
+        )
+        self.x_function = x_function
+        self.y_function = y_function
+        self.nr_updates = 0
+
+    def update(self) -> None:
+        """
+        """
+        x = self.x_function()
+        y = self.y_function()
+        counts, _ = np.histogram(x, bins=self.bins.edges, weights=y)
+        self.counts += counts
+        self.nr_updates += 1
+
+    def get(self, centers: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        """
+        counts, bins = super().get(centers=centers)
+        if self.nr_updates > 0:
+            counts /= self.nr_updates
+        return counts, bins
+
+
+class AverageProfile(Histogram):
     """
     A one-dimensional profile: average values of some property y evaluated in bins corresponding to a property x.
     Most often x is a distance/position.
@@ -181,30 +225,30 @@ class Prof(Histogram):
         )
         self.x_function = x_function
         self.y_function = y_function
-        self.values = np.zeros_like(self.counts)
+        self.nr_updates = np.zeros_like(self.counts)
 
     def update(self) -> None:
         """
         """
         x = self.x_function()
         y = self.y_function()
-        counts, _ = np.histogram(x, bins=self.bins.edges)
-        values, _ = np.histogram(x, bins=self.bins.edges, weights=y)
+        counts, _ = np.histogram(x, bins=self.bins.edges, weights=y)
         self.counts += counts
-        self.values += values
+
+        counts, _ = np.histogram(x, bins=self.bins.edges)
+        self.nr_updates += counts
 
     def get(self, centers: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
         """
         counts, bins = super().get(centers=centers)
-        values = self.values.copy()
-        np.true_divide(values, counts, out=values, where=self.counts > 0.0)
-        return values, bins
+        np.true_divide(counts, self.nr_updates, out=counts, where=self.nr_updates > 0)
+        return counts, bins
 
 
-class DProf(Prof):
+class DensityProfile(Profile):
     """
-    A one-dimensional density-profile: average values of some property y *per volume* evaluated in bins corresponding
+    A one-dimensional density-profile:values of some property y *per volume* accumulated in bins corresponding
     to a property x. Most often x is a distance/position.
     """
 
@@ -260,7 +304,6 @@ class DProf(Prof):
 
         x = self.x_function()
         y = self.y_function() / volume
-        counts, _ = np.histogram(x, bins=self.bins.edges)
-        values, _ = np.histogram(x, bins=self.bins.edges, weight=y)
+        counts, _ = np.histogram(x, bins=self.bins.edges, weights=y)
         self.counts += counts
-        self.values += values
+        self.nr_updates += 1

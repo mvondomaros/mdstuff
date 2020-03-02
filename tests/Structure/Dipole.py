@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 from mdstuff import NAMDUniverse
 from mdstuff.structure import (
-    Prof,
+    AverageProfile,
     Dipole,
     Magnitude,
     CompoundDistance,
@@ -21,7 +21,7 @@ universe = NAMDUniverse(psf, dcds)
 ag_list1 = universe.select_compounds("resname TIP3")
 ag_list2 = universe.select_compounds("not resname TIP3", compound="group")
 
-analysis = Prof(
+analysis = AverageProfile(
     x_function=Projection(CompoundDistance(ag_list1=ag_list1, ag_list2=ag_list2,)),
     x_bounds=(-50.0, 50.0),
     x_bin_width=1.0,

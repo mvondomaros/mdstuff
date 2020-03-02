@@ -126,7 +126,7 @@ class Histogram(Analysis):
         counts, _ = np.histogram(values, bins=self.bins.edges)
         self.counts += counts
 
-    def finalize(self, start: int, stop: int, step: int):
+    def finalize(self):
         pass
 
     def get(self, centers: bool = False) -> Tuple[np.ndarray, np.ndarray]:
@@ -188,7 +188,7 @@ class Histogram2D(Analysis):
         )
         self.counts += counts
 
-    def finalize(self, start: int, stop: int, step: int):
+    def finalize(self):
         pass
 
     def get(self, centers: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
