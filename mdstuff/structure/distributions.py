@@ -1,7 +1,6 @@
+import numpy as np
 import sys
 from typing import Tuple, Union
-
-import numpy as np
 
 from .base import Bins, Histogram, Histogram2D, StructureFunction
 from .. import MDStuffError

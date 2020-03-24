@@ -1,8 +1,7 @@
-from typing import Tuple
-
 import numpy as np
 import tqdm
 from MDAnalysis.core.groups import AtomGroup
+from typing import Tuple
 
 from .helpers import msd_fft
 from ..core import OneTimeAnalysis

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import MDAnalysis
 import abc
 import itertools
-from typing import Any, Tuple, List
-
-import MDAnalysis
 import numpy as np
 import tqdm
 from MDAnalysis.core.groups import AtomGroup
+from typing import Any, Tuple, List
 
 from .errors import MDStuffError, UniverseError, ParameterValueError
 

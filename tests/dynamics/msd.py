@@ -2,7 +2,6 @@ import glob
 import os
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 from mdstuff import NAMDUniverse
 from mdstuff.dynamics import SingleParticleMSD

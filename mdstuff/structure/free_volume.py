@@ -1,10 +1,9 @@
+import MDAnalysis.topology.tables
+import numpy as np
+from MDAnalysis.core.groups import AtomGroup
 from typing import Tuple
 
-import numpy as np
-
 from ..core import Analysis, Universe, MDStuffError
-from MDAnalysis.core.groups import AtomGroup
-import MDAnalysis.topology.tables
 
 
 class FreeVolumeProfile(Analysis):

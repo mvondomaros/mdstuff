@@ -1,8 +1,7 @@
-from typing import List
-
 import MDAnalysis
 import numpy as np
 from MDAnalysis.core.groups import AtomGroup
+from typing import List
 
 from .base import StructureFunction
 from .helpers import apply_mic

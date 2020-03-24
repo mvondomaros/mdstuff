@@ -1,9 +1,8 @@
+import MDAnalysis
 import collections
+import numpy as np
 import warnings
 from typing import Sequence, Union, Tuple
-
-import MDAnalysis
-import numpy as np
 
 from .base import Universe
 from .errors import MDStuffError, ParameterValueError

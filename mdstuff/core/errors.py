@@ -37,7 +37,7 @@ class ParameterValueError(MDStuffError):
         :param value: the value of the parameter
         :param allowed_values: the allowed values
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(*args)
         self.name = name
         self.value = repr(value) if isinstance(value, str) else value
         self.allowed_values = allowed_values

@@ -1,7 +1,6 @@
+import numpy as np
 import sys
 from typing import Tuple
-
-import numpy as np
 
 
 def roll_to_center(
