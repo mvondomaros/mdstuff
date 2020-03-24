@@ -1,3 +1,5 @@
+import os
+
 import MDAnalysis
 import collections
 import numpy as np
@@ -5,7 +7,7 @@ import warnings
 from typing import Sequence, Union, Tuple
 
 from .base import Universe
-from .errors import MDStuffError, ParameterValueError
+from .errors import MDStuffError, ParameterValueError, DataError
 
 
 # noinspection PyMissingConstructor
@@ -124,6 +126,9 @@ class NAMDUniverse(Universe):
         :param dcd: the DCD file name, or a Sequence of DCD file names, or a Sequence of (filename, length) tuples, or a
             mix thereof
         """
+        # Check that the PSF file exists.
+        if not os.path.exists(psf):
+            raise DataError(f"psf file does not exist: {psf}")
         super().__init__(psf, topology_format="PSF")
 
         # Figure out the DCD files/length combo and initialize a ContinuousDCDReader.
@@ -156,6 +161,10 @@ class NAMDUniverse(Universe):
                 value=dcd,
                 allowed_values="a str/tuple/sequence of tuples (see doc-string for details)",
             )
+        # Check that the DCD files exists.
+        for f in filenames:
+            if not os.path.exists(f):
+                raise DataError(f"dcd file does not exist: {f}")
         reader = ContinuousDCDReader(filenames, lengths)
 
         # Compare the number of atoms
