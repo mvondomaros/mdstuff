@@ -144,4 +144,4 @@ class FreeVolumeProfile(Analysis):
         profile = self.profile.copy()
         if self.nr_updates > 0:
             profile /= self.nr_updates
-        return self.profile, self.profile_centers
+        return profile, self.profile_centers
