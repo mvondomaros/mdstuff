@@ -17,15 +17,18 @@ from .distributions import (
     Profile,
 )
 from .free_volume import FreeVolumeProfile
-from .functions import Angle, Charge, CompoundDistance, Dipole, Distance, Mass, Position
+from .functions import Angle, Axis3, Charge, CompoundDistance, CompoundPosition, Dihedral, Dipole, Distance, Mass, Position
 
 __all__ = [
     "Angle",
     "AverageProfile",
+    "Axis3",
     "Bins",
     "Charge",
     "CompoundDistance",
+    "CompoundPosition",
     "CorrFunc2D",
+    "Dihedral",
     "Dipole",
     "Distance",
     "DensityProfile",

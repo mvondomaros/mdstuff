@@ -35,6 +35,38 @@ class Distance(StructureFunction):
         return d
 
 
+class Axis3(StructureFunction):
+    def __init__(self, ag1: AtomGroup, ag2: AtomGroup, ag3: AtomGroup, ag4: AtomGroup):
+        n1 = len(ag1)
+        n2 = len(ag2)
+        n3 = len(ag3)
+        n4 = len(ag4)
+        if n1 != n2 != n3 != n4:
+            raise MDStuffError(
+                f"the number of atoms in ag1 ({n1}), ag2 ({n2}), ag3 ({n3}), and ag4 ({n4}) do not match"
+            )
+        elif n1 == 0:
+            raise MDStuffError(f"all atom groups are empty")
+
+        super().__init__(ag1.universe)
+
+        self.ag1 = ag1
+        self.ag2 = ag2
+        self.ag3 = ag3
+        self.ag4 = ag4
+
+        self._shape = (n1, 3)
+
+    def __call__(self, *args, **kwargs):
+        axis = (
+            self.ag2.positions
+            + self.ag3.positions
+            + self.ag4.positions
+            - 3 * self.ag1.positions
+        )
+        return axis
+
+
 class Position(StructureFunction):
     def __init__(self, ag: AtomGroup, use_pbc: bool = False):
         n = len(ag)
@@ -88,25 +120,28 @@ class Charge(StructureFunction):
 
 
 class Angle(StructureFunction):
+    """
+    Compute the angle between ag1-ag2-ag3
+    """
+
     def __init__(
-        self, vertex: AtomGroup, tip1: AtomGroup, tip2: AtomGroup, use_mic: bool = True,
+        self, ag1: AtomGroup, ag2: AtomGroup, ag3: AtomGroup, use_mic: bool = False,
     ):
-        n1 = len(tip1)
-        n2 = len(vertex)
-        n3 = len(tip2)
+        n1 = len(ag1)
+        n2 = len(ag2)
+        n3 = len(ag3)
         if not n1 == n2 == n3:
             raise MDStuffError(
-                f"the number of atoms in the vertex group ({n2}) does not match "
-                f"the number of atoms in the tip1 group ({n1}) and/or the number of atoms in the tip2 group ({n3})"
+                f"the number of atoms in groups 1 ({n1}), 2 ({n2}), and 3 ({n3}) do not match"
             )
         elif n1 == 0:
             raise MDStuffError(f"all atom groups are empty")
 
-        super().__init__(vertex.universe)
+        super().__init__(ag2.universe)
 
-        self.ag1 = tip1
-        self.ag2 = vertex
-        self.ag3 = tip2
+        self.ag1 = ag1
+        self.ag2 = ag2
+        self.ag3 = ag3
         if use_mic:
             self.box = self.universe.dimensions
         else:
@@ -122,6 +157,43 @@ class Angle(StructureFunction):
             box=self.box,
             backend="OpenMP",
         )
+        a *= 180.0 / np.pi
+        return a
+
+
+class Dihedral(StructureFunction):
+    def __init__(
+        self,
+        ag1: AtomGroup,
+        ag2: AtomGroup,
+        ag3: AtomGroup,
+        ag4: AtomGroup,
+        use_mic: bool = False,
+    ):
+        n1 = len(ag1)
+        n2 = len(ag2)
+        n3 = len(ag3)
+        n4 = len(ag4)
+        if not n1 == n2 == n3 == n4:
+            raise MDStuffError(
+                f"the number of atoms in groups 1 ({n1}), 2 ({n2}), 3 ({n3}) and 4 ({n4}) do not match"
+            )
+        elif n1 == 0:
+            raise MDStuffError(f"all atom groups are empty")
+
+        super().__init__(ag1.universe)
+
+        self.d1 = Distance(ag1=ag2, ag2=ag1, use_mic=use_mic)
+        self.d2 = Distance(ag1=ag3, ag2=ag4, use_mic=use_mic)
+
+        self._shape = (n1,)
+
+    def __call__(self, *args, **kwargs):
+        d1 = self.d1()
+        d2 = self.d2()
+        r1 = np.linalg.norm(d1, axis=1)
+        r2 = np.linalg.norm(d2, axis=1)
+        a = np.arccos(np.sum(d1 * d2, axis=1) / (r1 * r2))
         a *= 180.0 / np.pi
         return a
 
@@ -142,9 +214,6 @@ class CompoundDistance(StructureFunction):
             )
         if n1 == 0:
             raise MDStuffError(f"the atom group lists are empty")
-        for ag1, ag2 in zip(ag_list1, ag_list2):
-            if ag1.universe != ag2.universe:
-                raise MDStuffError(f"universe mismatch between atom group list members")
 
         super().__init__(ag_list1[0].universe)
 
@@ -163,6 +232,25 @@ class CompoundDistance(StructureFunction):
         return d
 
 
+class CompoundPosition(StructureFunction):
+    def __init__(
+        self, ag_list: List[AtomGroup], use_pbc: bool = False,
+    ):
+        n = len(ag_list)
+        if n == 0:
+            raise MDStuffError(f"the atom group list is empty")
+
+        super().__init__(ag_list[0].universe)
+
+        self.ag_list = ag_list
+        self.use_pbc = use_pbc
+
+        self._shape = (n, 3)
+
+    def __call__(self, *args, **kwargs):
+        return np.array([ag.center_of_mass(pbc=self.use_pbc) for ag in self.ag_list])
+
+
 class Dipole(StructureFunction):
     def __init__(self, ag_list: List[AtomGroup]):
         super().__init__(ag_list[0].universe)
@@ -175,5 +263,5 @@ class Dipole(StructureFunction):
         x = np.array([ag.positions for ag in self.ag_list])
         x0 = np.array([ag.center_of_mass() for ag in self.ag_list])
         q = np.array([ag.charges for ag in self.ag_list])
-        mu = np.sum(q.T*x, axis=1)
+        mu = np.sum(q.T * x, axis=1)
         return mu

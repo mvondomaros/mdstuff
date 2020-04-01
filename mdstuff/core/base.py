@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import MDAnalysis
 import abc
 import itertools
+from typing import Any, Tuple, List
+
+import MDAnalysis
 import numpy as np
 import tqdm
 from MDAnalysis.core.groups import AtomGroup
-from typing import Any, Tuple, List
 
 from .errors import MDStuffError, UniverseError, ParameterValueError
 
@@ -92,7 +93,13 @@ class Universe(MDAnalysis.Universe):
         """
         self.analyses.append(analysis)
 
-    def run_analyses(self, start: int = None, stop: int = None, step: int = None):
+    def run_analyses(
+        self,
+        start: int = None,
+        stop: int = None,
+        step: int = None,
+        center: bool = False,
+    ):
         """
         Run all analyses.
 
@@ -107,9 +114,11 @@ class Universe(MDAnalysis.Universe):
         # Run update() for each analysis, but only if there's actually a running analysis.
         is_ota = [isinstance(analysis, OneTimeAnalysis) for analysis in self.analyses]
         if not np.all(is_ota):
-            for _ in tqdm.tqdm(
+            for ts in tqdm.tqdm(
                 self.trajectory[start:stop:step], desc="main trajectory loop"
             ):
+                if center:
+                    ts.positions -= self.atoms.center_of_mass()
                 for analysis in self.analyses:
                     analysis.update()
 
