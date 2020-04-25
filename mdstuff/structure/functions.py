@@ -103,6 +103,22 @@ class Mass(StructureFunction):
         return self.ag.masses
 
 
+class CompoundMass(StructureFunction):
+    def __init__(self, ag_list: List[AtomGroup]):
+        n = len(ag_list)
+        if n == 0:
+            raise MDStuffError(f"no compounds selected")
+
+        super().__init__(ag_list[0].universe)
+
+        self.ag_list = ag_list
+
+        self._shape = (n,)
+
+    def __call__(self):
+        return [np.sum(ag.masses) for ag in self.ag_list]
+
+
 class Charge(StructureFunction):
     def __init__(self, ag: AtomGroup):
         n = len(ag)
@@ -185,15 +201,44 @@ class Dihedral(StructureFunction):
 
         self.d1 = Distance(ag1=ag2, ag2=ag1, use_mic=use_mic)
         self.d2 = Distance(ag1=ag3, ag2=ag4, use_mic=use_mic)
+        self.d3 = Distance(ag1=ag2, ag2=ag3, use_mic=use_mic)
 
         self._shape = (n1,)
 
     def __call__(self, *args, **kwargs):
         d1 = self.d1()
         d2 = self.d2()
-        r1 = np.linalg.norm(d1, axis=1)
-        r2 = np.linalg.norm(d2, axis=1)
-        a = np.arccos(np.sum(d1 * d2, axis=1) / (r1 * r2))
+        d3 = self.d3()
+        d1xd3 = np.cross(d1, d3)
+        d2xd3 = np.cross(d2, d3)
+        d1xd3_norm = np.linalg.norm(d1xd3, axis=1)
+        d2xd3_norm = np.linalg.norm(d2xd3, axis=1)
+        a = np.arccos(np.sum(d1xd3 * d2xd3, axis=1) / (d1xd3_norm * d2xd3_norm))
+        a *= 180.0 / np.pi
+        return a
+
+
+class CompoundDihedral(StructureFunction):
+    def __init__(self, ag_list: List[AtomGroup]):
+        for ag in ag_list:
+            if len(ag) != 4:
+                raise MDStuffError(f"all atom groups must contain exactly four atoms")
+
+        super().__init__(ag_list[0].universe)
+
+        self.ag_list = ag_list
+
+        self._shape = (len(ag_list),)
+
+    def __call__(self, *args, **kwargs):
+        d1 = [ag.positions[0] - ag.positions[1] for ag in self.ag_list]
+        d2 = [ag.positions[3] - ag.positions[2] for ag in self.ag_list]
+        d3 = [ag.positions[2] - ag.positions[1] for ag in self.ag_list]
+        d1xd3 = np.cross(d1, d3)
+        d2xd3 = np.cross(d2, d3)
+        d1xd3_norm = np.linalg.norm(d1xd3, axis=1)
+        d2xd3_norm = np.linalg.norm(d2xd3, axis=1)
+        a = np.arccos(np.sum(d1xd3 * d2xd3, axis=1) / (d1xd3_norm * d2xd3_norm))
         a *= 180.0 / np.pi
         return a
 
@@ -260,8 +305,54 @@ class Dipole(StructureFunction):
         self._shape = (len(ag_list), 3)
 
     def __call__(self, *args, **kwargs):
-        x = np.array([ag.positions for ag in self.ag_list])
-        x0 = np.array([ag.center_of_mass() for ag in self.ag_list])
+        x = np.array([ag.positions - ag.center_of_mass() for ag in self.ag_list])
         q = np.array([ag.charges for ag in self.ag_list])
-        mu = np.sum(q.T * x, axis=1)
+        mu = np.sum(q[:, :, None] * x, axis=1)
         return mu
+
+
+class CompoundAxis(StructureFunction):
+    def __init__(self, ag_list: List[AtomGroup], n: int = 0):
+
+        if n not in [0, 1, 2]:
+            raise MDStuffError(f"n must be 0, 1, or 2")
+        self.n = n
+
+        n = len(ag_list)
+        if n == 0:
+            raise MDStuffError(f"the atom group list is empty")
+
+        super().__init__(ag_list[0].universe)
+
+        self.ag_list = ag_list
+
+        self._shape = (n, 3)
+
+    def __call__(self, *args, **kwargs):
+        axes = np.array([ag.principal_axes()[self.n] for ag in self.ag_list])
+        return axes
+
+
+class Moments(StructureFunction):
+    def __init__(self, ag_list: List[AtomGroup], n: int = 0):
+        if n not in [0, 1, 2]:
+            raise MDStuffError(f"n must be 0, 1, or 2")
+        self.n = n
+
+        n = len(ag_list)
+        if n == 0:
+            raise MDStuffError(f"the atom group list is empty")
+
+        super().__init__(ag_list[0].universe)
+
+        self.ag_list = ag_list
+
+        self._shape = (n,)
+
+    def __call__(self, *args, **kwargs):
+        return np.array(
+            [
+                np.sort(np.linalg.eigh(ag.moment_of_inertia())[0])[2 - self.n]
+                for ag in self.ag_list
+            ]
+        )

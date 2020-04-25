@@ -7,6 +7,9 @@ from .base import (
     Projection,
     StructureFunction,
     VectorReduction,
+    VectorOperationReduction,
+    DotProduct,
+    NormalizedDotProduct,
 )
 from .distributions import (
     AverageProfile,
@@ -17,7 +20,22 @@ from .distributions import (
     Profile,
 )
 from .free_volume import FreeVolumeProfile
-from .functions import Angle, Axis3, Charge, CompoundDistance, CompoundPosition, Dihedral, Dipole, Distance, Mass, Position
+from .functions import (
+    Angle,
+    Axis3,
+    Charge,
+    CompoundAxis,
+    CompoundMass,
+    CompoundDihedral,
+    CompoundDistance,
+    CompoundPosition,
+    Dihedral,
+    Dipole,
+    Distance,
+    Mass,
+    Moments,
+    Position,
+)
 
 __all__ = [
     "Angle",
@@ -25,6 +43,9 @@ __all__ = [
     "Axis3",
     "Bins",
     "Charge",
+    "CompoundAxis",
+    "CompoundMass",
+    "CompoundDihedral",
     "CompoundDistance",
     "CompoundPosition",
     "CorrFunc2D",
@@ -36,6 +57,7 @@ __all__ = [
     "Histogram",
     "Histogram2D",
     "Magnitude",
+    "Moments",
     "Mass",
     "Orientation",
     "PDens",
@@ -45,4 +67,7 @@ __all__ = [
     "Projection",
     "StructureFunction",
     "VectorReduction",
+    "VectorOperationReduction",
+    "DotProduct",
+    "NormalizedDotProduct",
 ]

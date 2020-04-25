@@ -94,6 +94,42 @@ class Orientation(Projection):
         return values[:, self.n] / magnitudes
 
 
+class VectorOperationReduction(StructureFunction, abc.ABC):
+    def __init__(self, function1: StructureFunction, function2: StructureFunction):
+        if len(function1.shape) != 2:
+            raise MDStuffError(f"function1 does not return vectors")
+        if len(function2.shape) != 2:
+            raise MDStuffError(f"function2 does not return vectors")
+        if function1.shape != function2.shape:
+            print(function1.shape, function2.shape)
+            raise MDStuffError(f"shape mismatch between function1 and function2")
+        super().__init__(universe=function1.universe)
+        self.function1 = function1
+        self.function2 = function2
+
+        self._shape = (function1.shape[0],)
+
+    @abc.abstractmethod
+    def __call__(self) -> np.ndarray:
+        pass
+
+
+class DotProduct(VectorOperationReduction):
+    def __call__(self):
+        v1 = self.function1()
+        v2 = self.function2()
+        return np.sum(v1 * v2, axis=1)
+
+
+class NormalizedDotProduct(VectorOperationReduction):
+    def __call__(self):
+        v1 = self.function1()
+        v2 = self.function2()
+        v1_norm = np.linalg.norm(v1, axis=1)
+        v2_norm = np.linalg.norm(v2, axis=1)
+        return np.sum(v1 * v2, axis=1) / (v1_norm * v2_norm)
+
+
 class Histogram(Analysis):
     """A one-dimensional, running histogram."""
 
