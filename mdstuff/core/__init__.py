@@ -1,12 +1,25 @@
-from .base import Analysis, OneTimeAnalysis, Universe
-from .errors import MDStuffError, ParameterValueError
-from .namd import NAMDUniverse
+from .analyses import Analysis, ParallelAnalysis
+from .base import CompoundArray, CompoundGroup, Universe
+from .errors import (
+    AnalysisError,
+    InputError,
+    MDStuffError,
+    ParameterValueError,
+    UniverseError,
+)
 
 __all__ = [
+    # Imports from .analyses.
     "Analysis",
+    "ParallelAnalysis",
+    # Imports from .errors.
+    "AnalysisError",
     "MDStuffError",
-    "NAMDUniverse",
-    "OneTimeAnalysis",
+    "InputError",
     "ParameterValueError",
+    "UniverseError",
+    # Imports from .base.
+    "CompoundArray",
+    "CompoundGroup",
     "Universe",
 ]

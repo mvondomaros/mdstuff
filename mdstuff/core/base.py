@@ -1,81 +1,153 @@
-from __future__ import annotations
-
-import abc
-import itertools
-from typing import Any, Tuple, List
+from typing import List, Sequence
 
 import MDAnalysis
 import numpy as np
 import tqdm
-from MDAnalysis.core.groups import AtomGroup
 
-from .errors import MDStuffError, UniverseError, ParameterValueError
+from .analyses import Analysis
+from . import ParallelAnalysis
+from .errors import UniverseError, ParameterValueError, InputError
+from ..transformations.transformations import Transformation
 
 
-class Analysis:
+class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
     """
-    Base analysis class.
+    A continuous DCD reader. The implementation is based on the MDAnalysis ChainReader.
+    Differences are:
+        - only supports DCD files
+        - trajectory lengths must be given as a sequence (None means using all frames)
+        - enforces a uniform time step
+        - no skip parameter
     """
 
-    def __init__(self, universe: Universe):
-        """Set the universe."""
-        self.universe = universe
+    format = "CONTINUOUSDCD"
 
-    @abc.abstractmethod
-    def update(self):
-        """Update the analysis."""
-        pass
-
-    @abc.abstractmethod
-    def finalize(self):
-        """Finalize the analysis."""
-        pass
-
-    @abc.abstractmethod
-    def get(self, *args, **kwargs) -> Any:
+    def __init__(self, filenames: Sequence[str], lengths: Sequence[int], **kwargs):
         """
-        Return the results.
-
-        :return: the results
+        :param filenames: a sequence of file names
+        :param lengths: a sequence of trajectory lengths
         """
-        pass
+        # We're overwriting what happens ChainReader.__init__(), so we need to explicitly call the
+        # grand-parent initializer.
+        super(MDAnalysis.coordinates.chain.ChainReader, self).__init__()
 
+        # References to all readers and filenames.
+        self.readers = []
+        for f in filenames:
+            try:
+                self.readers.append(
+                    MDAnalysis.coordinates.DCD.DCDReader(filename=f, **kwargs)
+                )
+            except OSError as e:
+                raise InputError(f"could not read DCD file: {f}")
+        self.filenames = np.array(filenames)
 
-class OneTimeAnalysis(Analysis, abc.ABC):
-    """
-    Base class for one-time analyses: analyses that do not need to be updated continuously, but that do
-    all their work in final(). The update() method won't be called for these analyses.
-    """
+        # The index of the active reader.
+        self.__active_reader_index = 0
 
-    def update(self):
-        """Should never be called."""
+        # We enforce an equal time step and equal number of atoms.
+        self.dts = self._get("dt")  # Needed as an array by some inherited methods.
+        self._get_same("dt")
+        self.n_atoms = self._get_same("n_atoms")
+
+        # Get the total number of frames.
+        n_total_frames = self._get("n_frames")
+        # Get the desired number of frames specified through lengths. Use all frames, if None is given.
+        n_desired_frames = [
+            length if length is not None else n
+            for length, n in zip(lengths, n_total_frames)
+        ]
+
+        # The total number of desired frames.
+        self.n_frames = np.sum(n_desired_frames)
+        # The virtual indices corresponding to the start of each trajectory.
+        self._start_frames = np.cumsum([0] + n_desired_frames)
+        # The cumulative time passed after each individual trajectory.
+        self.total_times = self.dt * np.array(n_desired_frames)
+        # Technical stuff copied shamelessly from the base class.
+        self.__chained_trajectories_iter = None
+        self.ts = None
+        self.rewind()
+
+    @property
+    def time(self) -> float:
+        """
+        Cumulative time of all frames in MDAnalysis time units (typically ps).
+
+        :return: the time
+        """
+        traj_index, sub_frame = self._get_local_frame(self.frame)
+        # Added +1 to sub_frame, since DCD files do not contain the initial coordinates.
+        return (
+            self.total_times[:traj_index].sum() + (sub_frame + 1) * self.dts[traj_index]
+        )
+
+    # Needed because of ABC requirements, but not implemented.
+    def Writer(self, *args, **kwargs):
         raise NotImplementedError
+
+    # Needed because of ABC requirements, but not implemented.
+    @classmethod
+    def parse_n_atoms(cls, *args, **kwargs):
+        raise NotImplementedError
+
+    @property
+    def dt(self) -> float:
+        """
+        Returns the time step.
+
+        :return: the time step
+        """
+        return self.dts[0]
 
 
 class Universe(MDAnalysis.Universe):
     """
     Base universe class.
-
-    This is an MDAnalysis universe which keeps track of analyses to perform. Unlike in MDAnalysis, this class is a
-    Singleton.
     """
 
     # Singleton instance reference.
     instance = None
 
-    # A list of valid compound specifiers.
-    _VALID_COMPOUNDS = ["residues", "molecules", "fragments", "segments"]
-
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        topology: str,
+        trajectories: Sequence[str],
+        lengths: Sequence[int] = None,
+        **kwargs,
+    ):
         # Check if there's already another universe.
         if Universe.instance is not None:
-            raise UniverseError
+            raise UniverseError("there can only be one universe")
+        else:
+            Universe.instance = self
 
-        Universe.instance = self
-        super().__init__(*args, **kwargs)
+        # Check if a normal MDAnalysis will do.
+        if lengths is None:
+            super().__init__(topology, *trajectories, **kwargs)
+        else:
+            super().__init__(topology, **kwargs)
 
-        # The list of analyses to perform.
-        self.analyses = []
+            if len(trajectories) != len(lengths):
+                raise ParameterValueError(
+                    name="lengths",
+                    value=lengths,
+                    message="must have the same number of items as trajectories",
+                )
+            reader = ContinuousDCDReader(trajectories, lengths)
+
+            # Compare the number of atoms.
+            self.n_atoms = len(self.atoms)
+            if self.n_atoms != reader.n_atoms:
+                raise InputError(
+                    f"the number of atoms in the PSF and DCD files do not match ({self.n_atoms} != {reader.n_atoms})"
+                )
+            self.trajectory = reader
+
+        # The analysis and transformation queues.
+        self.parallel_analyses = []
+        self.serial_analyses = []
+        self.transformations = []
 
     # Needed because of ABC requirements, but not implemented.
     def __getstate__(self, *args, **kwargs):
@@ -85,21 +157,29 @@ class Universe(MDAnalysis.Universe):
     def __setstate__(self, *args, **kwargs):
         raise NotImplementedError
 
-    def add_analysis(self, analysis: Analysis):
+    def add_transformations(self, *transformations: Transformation):
         """
-        Add an analysis.
+        Add transformations.
 
-        :param analysis: the analysis
+        :param transformations: the transformations
         """
-        self.analyses.append(analysis)
+        self.transformations += transformations
 
-    def run_analyses(
-        self,
-        start: int = None,
-        stop: int = None,
-        step: int = None,
-        center: bool = False,
-    ):
+    def apply_transformations(self):
+        for t in self.transformations:
+            t.apply(self.universe.atoms)
+
+    def add_analyses(self, *analyses: Analysis):
+        """
+        Add analyses.
+
+        :param analyses: the analyses
+        """
+        for analysis in analyses:
+            if isinstance(analysis, ParallelAnalysis):
+                self.parallel_analyses.append(analysis)
+
+    def run_analyses(self, start: int = None, stop: int = None, step: int = None):
         """
         Run all analyses.
 
@@ -107,215 +187,159 @@ class Universe(MDAnalysis.Universe):
         :param stop: optional, the last time step
         :param step: optional, the time step increment
         """
-        # Nothing to do.
-        if len(self.analyses) == 0:
-            return
+        universe = Universe.instance
 
-        # Run update() for each analysis, but only if there's actually a running analysis.
-        is_ota = [isinstance(analysis, OneTimeAnalysis) for analysis in self.analyses]
-        if not np.all(is_ota):
-            for ts in tqdm.tqdm(
-                self.trajectory[start:stop:step], desc="main trajectory loop"
+        if len(self.parallel_analyses) != 0:
+            for _ in tqdm.tqdm(
+                universe.trajectory[start:stop:step], desc="main trajectory loop"
             ):
-                if center:
-                    ts.positions -= self.atoms.center_of_mass()
-                for analysis in self.analyses:
+                self.apply_transformations()
+                for analysis in self.parallel_analyses:
                     analysis.update()
+            self.parallel_analyses = []
 
-        # Run finalize() for each analysis.
-        for analysis in tqdm.tqdm(self.analyses, desc="analysis finalization loop"):
-            analysis.finalize()
-
-        # Clear the list of analyses.
-        self.analyses = []
-
-    def select_atom_pairs(
-        self,
-        selection1: str,
-        selection2: str,
-        mode: str = "zip",
-        compound: str = "residues",
-    ) -> Tuple[AtomGroup, AtomGroup]:
-        """
-        Select unique pairs of atoms. Returns two atom lists of equal length, corresponding to the first and second
-        elements of the pairs, respectively.
-
-        :param selection1: the first selection string
-        :param selection2: the second selection string
-        :param mode: optional, the mode
-            "zip": zip over atoms in selection1 and selection2
-            "product": form the cartesian product between atoms in selection1 and selection2
-            "within": form the cartesian product between atoms in selection1 and selection2 that are within the same
-                compound
-            "between": form the cartesian product between atoms in selection1 and selection2 that are *not* within the
-                same compound
-        :param compound: optional, the compound specifier for mode="between" or mode="within"
-        :return: two atom groups
-        """
-        # Check the compound specifier.
-        if compound not in self._VALID_COMPOUNDS:
+    def select_compounds(self, *selection: str, group_by: str = "residues", **kwargs):
+        supported_groups = ["residues"]
+        if group_by not in supported_groups:
             raise ParameterValueError(
-                name="compound", value=compound, allowed_values=self._VALID_COMPOUNDS
+                name="group_by",
+                value=group_by,
+                message=f"supported values are {', '.join(supported_groups)}",
             )
 
-        # Check the mode.
-        _VALID_MODES = ["zip", "product", "within", "between"]
-        if mode not in _VALID_MODES:
-            raise ParameterValueError(
-                name="mode", value=mode, allowed_values=_VALID_MODES
-            )
+        updating = kwargs.setdefault("updating", False)
 
-        # In the following, we construct two collections: a list of pair indices (ordered), and a set of pair indices
-        # (unordered, unique). Only pairs that are not in the set will be added to the list. In the end, the atom groups
-        # will be constructed from the indices in the list.
-        index_set = set()
-        index_list = list()
-
-        if mode == "zip":
-            # Here, we zip over pairs of atoms in ag1 and ag2.
-            ag1 = self.select_atoms(selection1)
-            ag2 = self.select_atoms(selection2)
-            if (n1 := len(ag1)) != (n2 := len(ag2)):
-                raise MDStuffError(
-                    f"the number of atoms in selection1 ({n1}) does not match "
-                    f"the number of atoms in selection2 ({n2})"
-                )
-            for i1, i2 in zip(ag1.ix, ag2.ix):
-                if (i1, i2) not in index_set:
-                    index_set.add((i1, i2))
-                    index_list.append((i1, i2))
-        elif mode == "product":
-            # Here, we form the cartesian product of atoms in ag1 and ag2.
-            ag1 = self.select_atoms(selection1)
-            ag2 = self.select_atoms(selection2)
-            for i1, i2 in itertools.product(ag1.ix, ag2.ix):
-                if (i1, i2) not in index_set:
-                    index_set.add((i1, i2))
-                    index_list.append((i1, i2))
-        elif mode == "within":
-            # Here, we loop over all selected compounds, select the respective atoms, and form the cartesian product.
-            for c in getattr(self, compound):
-                ag1 = c.atoms.select_atoms(selection1)
-                ag2 = c.atoms.select_atoms(selection2)
-                if len(ag1) == 0 or len(ag2) == 0:
-                    # Cartesian product will be empty, no need to continue.
-                    continue
-                for i1, i2 in itertools.product(ag1.ix, ag2.ix):
-                    if (i1, i2) not in index_set:
-                        index_set.add((i1, i2))
-                        index_list.append((i1, i2))
-        elif mode == "between":
-            # Here, we loop over all pairs of unequal compounds, select the respective atoms, and form the cartesian
-            # product.
-            compounds = getattr(self, compound)
-            for c1 in compounds:
-                ag1 = c1.atoms.select_atoms(selection1)
-                if len(ag1) == 0:
-                    # Cartesian product will be empty, no need to continue.
-                    continue
-                for c2 in compounds:
-                    if c1 == c2:
-                        # Same compound. No need to continue.
-                        continue
-                    ag2 = c2.atoms.select_atoms(selection2)
-                    if len(ag2) == 0:
-                        # Cartesian product will be empty, no need to continue.
-                        continue
-                    for i1, i2 in itertools.product(ag1.ix, ag2.ix):
-                        if (i1, i2) not in index_set:
-                            index_set.add((i1, i2))
-                            index_list.append((i1, i2))
-        else:
-            raise NotImplementedError
-
-        i1, i2 = np.transpose(index_list)
-        return AtomGroup(i1, self), AtomGroup(i2, self)
-
-    def select_atom_triplets(
-        self, ag1: AtomGroup, ag2: AtomGroup, selection: str, mode: str = "zip",
-    ) -> Tuple[
-        AtomGroup, AtomGroup, AtomGroup,
-    ]:
-        """
-        Select unique triplets of atoms. Returns three atom lists of equal length, corresponding to the first, second,
-        and third elements of the triplets, respectively.
-
-        :param ag1: the first atom group (use select_pairs() to get the desired selection)
-        :param ag2: the second atom group (use select_pairs() to get the desired selection)
-        :param selection: the selection string for the third atom group
-        :param mode: optional, the mode
-            "zip": zip over atoms in ag1, ag2 and selection3
-            "product": form the cartesian product between pairs of atoms in ag1 and ag2 and those atoms in selection3
-        :return: two atom groups
-        """
-        # Check the mode.
-        _VALID_MODES = ["zip", "product"]
-        if mode not in _VALID_MODES:
-            raise ParameterValueError(
-                name="mode", value=mode, allowed_values=_VALID_MODES
-            )
-
-        # Check the lengths of ag1 and ag2.
-        if (n1 := len(ag1)) != (n2 := len(ag2)):
-            raise MDStuffError(
-                f"the number of atoms in ag1 ({n1}) does not match the number of atoms in ag2 ({n2})"
-            )
-
-        # In the following, we construct two collections: a list of triplet indices (ordered), and a set of triplet
-        # indices (unordered, unique). Only triplets that are not in the set will be added to the list. In the end,
-        # the atom groups will be constructed from the indices in the list.
-        index_set = set()
-        index_list = list()
-
-        if mode == "zip":
-            # Here, we zip over triplets of atoms in ag1, ag2, and ag3.
-            ag3 = self.select_atoms(selection)
-            if n1 != (n3 := len(ag3)):
-                raise MDStuffError(
-                    f"the number of atoms in ag1 and ag2 ({n1}) does not match "
-                    f"the number of selected atoms ({n3})"
-                )
-            for i1, i2, i3 in zip(ag1.ix, ag2.ix, ag3.ix):
-                if (i1, i2, i3) not in index_set:
-                    index_set.add((i1, i2, i3))
-                    index_list.append((i1, i2, i3))
-        elif mode == "product":
-            # Here, we form the cartesian product between pairs in ag1 and ag2, and atoms ag3.
-            ag3 = self.select_atoms(selection)
-            for (i1, i2), i3 in itertools.product(zip(ag1.ix, ag2.ix), ag3.ix):
-                if (i1, i2, i3) not in index_set:
-                    index_set.add((i1, i2, i3))
-                    index_list.append((i1, i2, i3))
-        else:
-            raise NotImplementedError
-        i1, i2, i3 = np.transpose(index_list)
-        return AtomGroup(i1, self), AtomGroup(i2, self), AtomGroup(i3, self)
-
-    def select_compounds(
-        self, selection: str, compound: str = "residues"
-    ) -> List[AtomGroup]:
-        """
-        Select compounds of atoms.
-
-        :param selection: the selection string
-        :param compound: optional, the compound specifier
-        :return: a list of atom groups
-        """
         ag_list = []
-        if compound == "group":
-            ag = self.select_atoms(selection)
+        for compound in getattr(self, group_by):
+            ag = compound.atoms.select_atoms(*selection, **kwargs)
             if len(ag) != 0:
                 ag_list.append(ag)
-        elif compound in self._VALID_COMPOUNDS:
-            for c in getattr(self, compound):
-                ag = c.atoms.select_atoms(selection)
-                if len(ag) != 0:
-                    ag_list.append(ag)
+
+        nr_atoms = [len(ag) for ag in ag_list]
+        if not updating and len(np.unique(nr_atoms)) == 1:
+            return CompoundArray(universe=self, ag_list=ag_list)
         else:
-            raise ParameterValueError(
-                name="compound",
-                value=compound,
-                allowed_values=self._VALID_COMPOUNDS + ["group"],
+            return CompoundGroup(universe=self, ag_list=ag_list)
+
+
+class CompoundGroup:
+    """
+    A group of compounds (e.g., atoms grouped by residues).
+    """
+
+    def __init__(
+        self,
+        universe: MDAnalysis.Universe,
+        ag_list: List[MDAnalysis.core.groups.AtomGroup],
+    ):
+        """
+        :param universe: a Universe
+        :param ag_list: a list of MDAnalysis AtomGroups
+        """
+        self.universe = universe
+        self.compounds = ag_list
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} with {len(self.compounds)} compounds>"
+
+    def __add__(self, other):
+        return self.__class__(
+            universe=self.universe, ag_list=self.compounds + other.compounds
+        )
+
+    def centers_of_mass(self) -> np.ndarray:
+        return np.array([compound.center_of_mass() for compound in self.compounds])
+
+    def dipoles(self) -> np.ndarray:
+        x = np.array(
+            [
+                compound.positions - compound.center_of_mass()
+                for compound in self.compounds
+            ]
+        )
+        q = np.array([compound.charges for compound in self.compounds])
+        mu = np.sum(q[:, :, None] * x, axis=1)
+        return mu
+
+    def principal_axes(self) -> np.ndarray:
+        return np.array(
+            [
+                (np.linalg.eigh(compound.moment_of_inertia())[1]).T
+                for compound in self.compounds
+            ]
+        )
+
+    def principal_moments(self) -> np.ndarray:
+        return np.array(
+            [
+                np.linalg.eigvalsh(compound.moment_of_inertia())
+                for compound in self.compounds
+            ]
+        )
+
+    def total_mass(self) -> np.ndarray:
+        return np.array([compound.total_mass() for compound in self.compounds])
+
+
+class CompoundArray(CompoundGroup):
+    """
+    A compound group where each compound has the same number of atoms.
+
+    This should allow for the implementation of faster, specialized methods.
+    """
+
+    def __init__(
+        self,
+        universe: MDAnalysis.Universe,
+        ag_list: List[MDAnalysis.core.groups.AtomGroup],
+    ):
+        """
+        :param universe: a Universe
+        :param ag_list: a list of MDAnalysis AtomGroups
+        """
+
+        super().__init__(universe=universe, ag_list=ag_list)
+
+        # An array storing the atom indices.
+        self.indices = np.array([ag.ix for ag in self.compounds])
+        # The shape of the CompoundGroup (nr. of compounds, nr. of atoms per compound)
+        self.shape = self.indices.shape
+
+    def bonds(self) -> np.ndarray:
+        if self.shape[1] != 2:
+            raise InputError(
+                "all compounds must consist of two atoms to compute a bond"
             )
 
-        return ag_list
+        x1, x2 = self.universe.atoms.positions[self.indices.T]
+        return x2 - x1
+
+    def charges(self) -> np.ndarray:
+        return self.universe.atoms.charges[self.indices]
+
+    def dihedrals(self) -> np.ndarray:
+        if self.shape[1] != 4:
+            raise InputError(
+                "all compounds must consist of four atoms to compute a dihedral"
+            )
+
+        x1, x2, x3, x4 = self.universe.atoms.positions[self.indices.T]
+        a = x1 - x2
+        b = x4 - x3
+        c = x3 - x2
+        axc = np.cross(a, c)
+        bxc = np.cross(b, c)
+        axc_norm = np.linalg.norm(axc, axis=1)
+        bxc_norm = np.linalg.norm(bxc, axis=1)
+        cos = np.sum(axc * bxc, axis=1) / (axc_norm * bxc_norm)
+        # Sometimes there are underflows, because of numerical imprecision.
+        np.maximum(cos, -1.0, out=cos)
+        # And sometimes there are overflows.
+        np.minimum(cos, 1.0, out=cos)
+        return np.arccos(cos)
+
+    def masses(self) -> np.ndarray:
+        return self.universe.atoms.masses[self.indices]
+
+    def positions(self) -> np.ndarray:
+        return self.universe.atoms.positions[self.indices]

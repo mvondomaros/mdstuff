@@ -1,29 +1,28 @@
-import collections
 from typing import Any
 
 
 class MDStuffError(Exception):
-    """Base error class in MDStuff."""
+    """
+    Base error class in mdstuff.
+    """
 
     pass
 
 
-class DataError(MDStuffError):
-    """
-    Raised when something is wrong with the trajectory data.
-    """
-
-    def __init__(self, message: str):
-        self.message = message
-
-
 class UniverseError(MDStuffError):
     """
-    MDStuff enforces a single universe. This exception is raised when a user attempts to violate this policy.
+    Raised when no or multiple universes were created.
     """
 
-    def __str__(self):
-        return "there can only be one universe"
+    pass
+
+
+class InputError(MDStuffError):
+    """
+    Raised when something is wrong with the topology/trajectory input.
+    """
+
+    pass
 
 
 class ParameterValueError(MDStuffError):
@@ -31,23 +30,27 @@ class ParameterValueError(MDStuffError):
     Raised when a parameter takes on an invalid value.
     """
 
-    def __init__(self, name: str, value: Any, allowed_values: Any, *args, **kwargs):
+    def __init__(self, name: str, value: Any, message: str = None):
         """
         :param name: the name of the parameter
         :param value: the value of the parameter
-        :param allowed_values: the allowed values
+        :param message: optional, an additional message
         """
-        super().__init__(*args)
+        super().__init__()
         self.name = name
         self.value = repr(value) if isinstance(value, str) else value
-        self.allowed_values = allowed_values
+        self.message = message
 
     def __str__(self):
-        if isinstance(self.allowed_values, str):
-            what = self.allowed_values
-        elif isinstance(self.allowed_values, collections.Iterable):
-            what = f"one of {self.allowed_values}"
-        else:
-            what = f"{self.allowed_values}"
-        message = f"invalid parameter value ({self.name}={self.value}); expected {what}"
-        return message
+        s = f"invalid parameter value ({self.name}={self.value})"
+        if self.message is not None:
+            s += f"; {self.message}"
+        return s
+
+
+class AnalysisError(MDStuffError):
+    """
+    Raised when something goes wrong during an analysis.
+    """
+
+    pass
