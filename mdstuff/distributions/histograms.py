@@ -101,7 +101,7 @@ class Histogram(ParallelAnalysis):
         elif normalization == "ave":
             norm_counts = self.counts / self.nr_updates
         else:
-            raise NotImplementedError(f"{normalization=}")
+            raise NotImplementedError(f"normalization = {normalization}")
 
         np.savez(
             name,
@@ -117,13 +117,14 @@ class Histogram2D(ParallelAnalysis):
     """
 
     def __init__(
-        self, x_values: Callable, y_values: Callable, x_bins: Tuple, y_bins: Tuple,
+        self, x_values: Callable, y_values: Callable, x_bins: Tuple, y_bins: Tuple, filter: Callable = None
     ):
         """
         :param x_values: a function returning the x-values
         :param y_values: a function returning the y-values
         :param x_bins: lower bound, upper bound, bin width in the x-dimension
         :param y_bins: lower bound, upper bound, bin width in the y-dimension
+        :param filter: optional, a function that returns a boolean mask, filtering out values
         """
         super().__init__()
 
@@ -139,6 +140,12 @@ class Histogram2D(ParallelAnalysis):
             )
         self.y_values = y_values
 
+        if filter is not None and not callable(filter):
+            raise ParameterValueError(
+                "filter", value=filter, message="should be callable"
+            )
+        self.filter = filter
+
         self.x_bins = Bins(bin_spec=x_bins)
         self.y_bins = Bins(bin_spec=y_bins)
         self.counts = np.zeros((self.x_bins.count, self.y_bins.count))
@@ -150,6 +157,10 @@ class Histogram2D(ParallelAnalysis):
         """
         x_values = self.x_values()
         y_values = self.y_values()
+        if self.filter is not None:
+            mask = self.filter()
+            x_values = x_values[mask]
+            y_values = y_values[mask]
 
         counts, *_ = np.histogram2d(
             x=x_values, y=y_values, bins=(self.x_bins.edges, self.y_bins.edges),
@@ -171,7 +182,7 @@ class Histogram2D(ParallelAnalysis):
             norm = np.sum(norm_counts, axis=1)[:, None] * self.y_bins.width
             np.true_divide(norm_counts, norm, out=norm_counts, where=norm > 0.0)
         else:
-            raise NotImplementedError(f"{normalization=}")
+            raise NotImplementedError(f"normalization = {normalization}")
 
         np.savez(
             name,
