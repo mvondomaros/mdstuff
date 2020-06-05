@@ -1,5 +1,5 @@
 import numbers
-from typing import Tuple, Callable
+from typing import Callable, Tuple
 
 import numpy as np
 
@@ -117,7 +117,12 @@ class Histogram2D(ParallelAnalysis):
     """
 
     def __init__(
-        self, x_values: Callable, y_values: Callable, x_bins: Tuple, y_bins: Tuple, filter: Callable = None
+        self,
+        x_values: Callable,
+        y_values: Callable,
+        x_bins: Tuple,
+        y_bins: Tuple,
+        filter: Callable = None,
     ):
         """
         :param x_values: a function returning the x-values
