@@ -5,19 +5,25 @@ def nextpow2(n: int) -> int:
     """
     Return the smallest power of 2 equal or greater than n.
 
-    :param n: an integer
-    :return: the next power of 2
+    Args:
+        n (int): An integer.
+
+    Returns:
+        int: The next power of 2.
     """
     return 1 << (n - 1).bit_length()
 
 
-def autocorr_fft(x: np.ndarray, length: int = None):
+def autocorr_fft(x: np.ndarray, length: int = None) -> np.ndarray:
     """
     Compute the autocorrelation function of a one-dimensional array using FFT.
 
-    :param x: the array
-    :param length: optional, the maximum correlation length
-    :return: the autocorrelation function of the array
+    Args:
+        x (np.ndarray): The array.
+        length (int, optional): The maximum correlation length. Defaults to None.
+
+    Returns:
+        np.ndarray: The autocorrelation function of the array.
     """
     n = len(x)
     m = n if length is None else length
@@ -32,14 +38,17 @@ def autocorr_fft(x: np.ndarray, length: int = None):
     return res
 
 
-def msd_fft(x: np.ndarray, length: int = None):
+def msd_fft(x: np.ndarray, length: int = None) -> np.ndarray:
     """
     Compute the mean squared displacements of a one-dimensional array.
     See: https://stackoverflow.com/questions/34222272/computing-mean-square-displacement-using-python-and-fft
 
-    :param x: the array
-    :param length: optional, the maximum correlation length
-    :return: the mean squared displacements
+    Args:
+        x (np.ndarray): The positions.
+        length (int, optional): The maximum correlation length. Defaults to None.
+
+    Returns:
+        np.ndarray: The mean squared displacements.
     """
     n = x.size
     m = n if length is None else length
