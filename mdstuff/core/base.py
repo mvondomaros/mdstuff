@@ -13,6 +13,7 @@ from ..transformations.transformations import Transformation
 class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
     """
     A continuous DCD reader. The implementation is based on the MDAnalysis ChainReader.
+
     Differences are:
         - only supports DCD files
         - trajectory lengths must be given as a sequence (None means using all frames)
@@ -26,6 +27,7 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
         """
         :param filenames: a sequence of file names
         :param lengths: a sequence of trajectory lengths
+        :param **kwargs: will be passed to DCDREader()
         """
         # We're overwriting what happens ChainReader.__init__(), so we need to explicitly call the
         # grand-parent initializer.
@@ -116,6 +118,7 @@ class Universe(MDAnalysis.Universe):
         lengths: Sequence[int] = None,
         **kwargs,
     ):
+
         # Check if there's already another universe.
         if Universe.instance is not None:
             raise UniverseError("there can only be one universe")

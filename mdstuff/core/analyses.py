@@ -4,13 +4,16 @@ import abc
 class Analysis(abc.ABC):
     """
     Base class for all analyses.
-    """
+    """    
 
     @abc.abstractmethod
     def save(self, filename: str):
         """
         Save the results.
-        """
+
+        Args:
+            filename (str): the file name
+        """        
         pass
 
 
