@@ -32,10 +32,13 @@ class ParameterValueError(MDStuffError):
 
     def __init__(self, name: str, value: Any, message: str = None):
         """
-        :param name: the name of the parameter
-        :param value: the value of the parameter
-        :param message: optional, an additional message
-        """
+        Initialize a parameter value error.
+
+        Args:
+            name (str): The name of the parameter.
+            value (Any): Its value.
+            message (str, optional): A descriptive message. Defaults to None.
+        """        
         super().__init__()
         self.name = name
         self.value = repr(value) if isinstance(value, str) else value
