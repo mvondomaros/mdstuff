@@ -7,7 +7,20 @@ from mdstuff.core import ParallelAnalysis, ParameterValueError
 
 
 class Bins:
+    """
+    A one-dimensional bins class.
+    """
+
     def __init__(self, bin_spec: Tuple[float]):
+        """
+        Initialize the bins.
+
+        Args:
+            bin_spec (Tuple[float]): The lower bound, the upper bound, the bin width.
+
+        Raises:
+            ParameterValueError: If a parameter takes on an invalid value.
+        """
         if len(bin_spec) != 3:
             raise ParameterValueError(
                 name="bin_spec", value=bin_spec, message="should be a 3-tuple"
@@ -54,12 +67,23 @@ class Histogram(ParallelAnalysis):
     """
 
     def __init__(
-        self, values: Callable, bins: Tuple, weights: Callable = None,
+        self,
+        values: Callable,
+        bins: Tuple,
+        weights: Callable = None,
+        filter: Callable = None,
     ):
         """
-        :param values: a function returning the values
-        :param bins: lower bound, upper bound, bin width
-        :param weights: optional, a function returning weights for all values
+        Initialize a histogram.
+
+        Args:
+            values (Callable): The function to be called for getting values.
+            bins (Tuple): The bin specificiation.
+            weights (Callable, optional): Function to be called for weights. Defaults to None.
+            filter (Callable, optional): The function to be called for getting a mask. Defaults to None.
+
+        Raises:
+            ParameterValueError: If a parameter takes on an invalid value.
         """
         super().__init__()
 
@@ -75,11 +99,17 @@ class Histogram(ParallelAnalysis):
             )
         self.weights = weights
 
+        if filter is not None and not callable(filter):
+            raise ParameterValueError(
+                "filter", value=filter, message="should be callable"
+            )
+        self.filter = filter
+
         self.bins = Bins(bin_spec=bins)
         self.counts = np.zeros_like(self.bins.centers)
         self.nr_updates = 0
 
-    def update(self) -> None:
+    def update(self):
         """
         Add values to the histogram.
         """
@@ -89,11 +119,30 @@ class Histogram(ParallelAnalysis):
         else:
             weights = self.weights()
 
+        if self.filter is not None:
+            mask = self.filter()
+            values = values[mask]
+            if self.weights is not None:
+                weights = weights[mask]
+
         counts, _ = np.histogram(values, bins=self.bins.edges, weights=weights)
         self.counts += counts
         self.nr_updates += 1
 
     def save(self, name: str, normalization: str = None):
+        """
+        Save the histogram.
+
+        Args:
+            name (str): The file name.
+            normalization (str, optional): The normalization mode. Defaults to None.
+                Supported modes are:
+                    - "pdens": Compute a probability density.
+                    - "ave": Compute averages.
+
+        Raises:
+            NotImplementedError: If an unsupported normalization mode is chosen.
+        """
         if normalization is None:
             norm_counts = self.counts
         elif normalization == "pdens":
@@ -125,11 +174,17 @@ class Histogram2D(ParallelAnalysis):
         filter: Callable = None,
     ):
         """
-        :param x_values: a function returning the x-values
-        :param y_values: a function returning the y-values
-        :param x_bins: lower bound, upper bound, bin width in the x-dimension
-        :param y_bins: lower bound, upper bound, bin width in the y-dimension
-        :param filter: optional, a function that returns a boolean mask, filtering out values
+        Initialize a histogram.
+
+        Args:
+            x_values (Callable): The function to be called for getting the x-values.
+            y_values (Callable): The function to be called for getting the y-values.
+            x_bins (Tuple): The x-bin specificiation.
+            y_bins (Tuple): The y-bin specificiation.
+            filter (Callable, optional): The function to be called for getting a mask. Defaults to None.
+
+        Raises:
+            ParameterValueError: If a parameter takes on an invalid value.
         """
         super().__init__()
 
@@ -156,7 +211,7 @@ class Histogram2D(ParallelAnalysis):
         self.counts = np.zeros((self.x_bins.count, self.y_bins.count))
         self.nr_updates = 0
 
-    def update(self) -> None:
+    def update(self):
         """
         Add values to the histogram.
         """
@@ -174,6 +229,20 @@ class Histogram2D(ParallelAnalysis):
         self.nr_updates += 1
 
     def save(self, name: str, normalization: str = None):
+        """
+        Save the histogram.
+
+        Args:
+            name (str): The file name.
+            normalization (str, optional): The normalization mode. Defaults to None.
+                Supported modes are:
+                    - "pdens": Compute a probability density.
+                    - "ave": Compute averages.
+                    - "cond_pdens": Compute a conditional probability density (with respect to the x-axis).
+
+        Raises:
+            NotImplementedError: If an unsupported normalization mode is chosen.
+        """
         if normalization is None:
             norm_counts = self.counts
         elif normalization == "pdens":
