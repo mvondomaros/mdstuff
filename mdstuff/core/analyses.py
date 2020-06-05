@@ -12,7 +12,7 @@ class Analysis(abc.ABC):
         Save the results.
 
         Args:
-            filename (str): the file name
+            filename (str): The file name.
         """        
         pass
 

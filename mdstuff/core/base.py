@@ -1,4 +1,4 @@
-from typing import List, Sequence
+from typing import List, Sequence, Union
 
 import MDAnalysis
 import numpy as np
@@ -15,19 +15,24 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
     A continuous DCD reader. The implementation is based on the MDAnalysis ChainReader.
 
     Differences are:
-        - only supports DCD files
-        - trajectory lengths must be given as a sequence (None means using all frames)
-        - enforces a uniform time step
-        - no skip parameter
+        - Only supports DCD files.
+        - Trajectory lengths must be given as a sequence (None means using all frames).
+        - Enforces a uniform time step.
+        - No skip parameter.
     """
 
     format = "CONTINUOUSDCD"
 
     def __init__(self, filenames: Sequence[str], lengths: Sequence[int], **kwargs):
         """
-        :param filenames: a sequence of file names
-        :param lengths: a sequence of trajectory lengths
-        :param **kwargs: will be passed to DCDREader()
+        Initialize the reader.
+
+        Args:
+            filenames (Sequence[str]): The file names.
+            lengths (Sequence[int]): The trajectory lengths.
+
+        Raises:
+            InputError: A file cannot be read.
         """
         # We're overwriting what happens ChainReader.__init__(), so we need to explicitly call the
         # grand-parent initializer.
@@ -74,9 +79,10 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
     @property
     def time(self) -> float:
         """
-        Cumulative time of all frames in MDAnalysis time units (typically ps).
+        Return the cumulative time of all frames.
 
-        :return: the time
+        Returns:
+            float: The time.
         """
         traj_index, sub_frame = self._get_local_frame(self.frame)
         # Added +1 to sub_frame, since DCD files do not contain the initial coordinates.
@@ -118,6 +124,19 @@ class Universe(MDAnalysis.Universe):
         lengths: Sequence[int] = None,
         **kwargs,
     ):
+        """
+        Initialize a universe.
+
+        Args:
+            topology (str): The topology file.
+            trajectories (Sequence[str]): The trajectory files.
+            lengths (Sequence[int], optional): The trajectory lengths. Defaults to None.
+
+        Raises:
+            UniverseError: If there is more than one Universe.
+            ParameterValueError: If a parameter has an invalid value.
+            InputError: If there is a mismatch between the topology and the trajectories.
+        """
 
         # Check if there's already another universe.
         if Universe.instance is not None:
@@ -162,21 +181,20 @@ class Universe(MDAnalysis.Universe):
 
     def add_transformations(self, *transformations: Transformation):
         """
-        Add transformations.
-
-        :param transformations: the transformations
+        Register transformations.
         """
         self.transformations += transformations
 
     def apply_transformations(self):
+        """
+        Apply all registered transformations.
+        """
         for t in self.transformations:
             t.apply(self.universe.atoms)
 
     def add_analyses(self, *analyses: Analysis):
         """
-        Add analyses.
-
-        :param analyses: the analyses
+        Register analyses.
         """
         for analysis in analyses:
             if isinstance(analysis, ParallelAnalysis):
@@ -184,11 +202,12 @@ class Universe(MDAnalysis.Universe):
 
     def run_analyses(self, start: int = None, stop: int = None, step: int = None):
         """
-        Run all analyses.
+        Run all registered analyses.
 
-        :param start: optional, the first time step
-        :param stop: optional, the last time step
-        :param step: optional, the time step increment
+        Args:
+            start (int, optional): The first time step. Defaults to None.
+            stop (int, optional): The last time step. Defaults to None.
+            step (int, optional): The time step increment. Defaults to None.
         """
         universe = Universe.instance
 
@@ -201,7 +220,21 @@ class Universe(MDAnalysis.Universe):
                     analysis.update()
             self.parallel_analyses = []
 
-    def select_compounds(self, *selection: str, group_by: str = "residues", **kwargs):
+    def select_compounds(self, *selection: str, group_by: str = "residues", **kwargs) -> CompoundGroup:
+        """
+        Select compounds (groups of atoms).
+
+        Args:
+            *selections (str): The selection strings. Use multiple strings if the order is important.
+            group_by (str, optional): The compound type by which atoms will be grouped. Defaults to "residues".
+            **kwargs: Keyword arguments passed to MDAnalysis.Universe.select_atoms().
+
+        Raises:
+            ParameterValueError: If a parameters has an invalid value.
+
+        Returns:
+            CompundGroup: Returns a CompoundGroup instance or an instance of its subtype, CompoundArray.
+        """
         supported_groups = ["residues"]
         if group_by not in supported_groups:
             raise ParameterValueError(
@@ -236,9 +269,12 @@ class CompoundGroup:
         ag_list: List[MDAnalysis.core.groups.AtomGroup],
     ):
         """
-        :param universe: a Universe
-        :param ag_list: a list of MDAnalysis AtomGroups
-        """
+        Create a compound group.
+
+        Args:
+            universe (MDAnalysis.Universe): The universe.
+            ag_list (List[MDAnalysis.core.groups.AtomGroup]): The atom groups containing each compound.
+        """        
         self.universe = universe
         self.compounds = ag_list
 
@@ -251,9 +287,21 @@ class CompoundGroup:
         )
 
     def centers_of_mass(self) -> np.ndarray:
+        """
+        Compute the centers of masses.
+
+        Returns:
+            np.ndarray: The centers of masses.
+        """
         return np.array([compound.center_of_mass() for compound in self.compounds])
 
     def dipoles(self) -> np.ndarray:
+        """
+        Compute the dipoles.
+
+        Returns:
+            np.ndarray: The dipoles.
+        """
         x = np.array(
             [
                 compound.positions - compound.center_of_mass()
@@ -265,6 +313,12 @@ class CompoundGroup:
         return mu
 
     def principal_axes(self) -> np.ndarray:
+        """
+        Compute the principal axes.
+
+        Returns:
+            np.ndarray: The principal axes.
+        """
         return np.array(
             [
                 (np.linalg.eigh(compound.moment_of_inertia())[1]).T
@@ -273,6 +327,12 @@ class CompoundGroup:
         )
 
     def principal_moments(self) -> np.ndarray:
+        """
+        Compute the principal moments.
+
+        Returns:
+            np.ndarray: The principal moments.
+        """
         return np.array(
             [
                 np.linalg.eigvalsh(compound.moment_of_inertia())
@@ -281,6 +341,12 @@ class CompoundGroup:
         )
 
     def total_mass(self) -> np.ndarray:
+        """
+        Compute the total mass.
+
+        Returns:
+            np.ndarray: The total mass.
+        """
         return np.array([compound.total_mass() for compound in self.compounds])
 
 
@@ -297,8 +363,11 @@ class CompoundArray(CompoundGroup):
         ag_list: List[MDAnalysis.core.groups.AtomGroup],
     ):
         """
-        :param universe: a Universe
-        :param ag_list: a list of MDAnalysis AtomGroups
+        Initialize a compound array.
+
+        Args:
+            universe (MDAnalysis.Universe): The universe.
+            ag_list (List[MDAnalysis.core.groups.AtomGroup]): A list of atom groups.
         """
 
         super().__init__(universe=universe, ag_list=ag_list)
@@ -309,6 +378,15 @@ class CompoundArray(CompoundGroup):
         self.shape = self.indices.shape
 
     def bonds(self) -> np.ndarray:
+        """
+        Compute bond vectors.
+
+        Raises:
+            InputError: If the number of atoms per compound differs from 2.
+
+        Returns:
+            np.ndarray: The bond vectors.
+        """
         if self.shape[1] != 2:
             raise InputError(
                 "all compounds must consist of two atoms to compute a bond"
@@ -318,9 +396,24 @@ class CompoundArray(CompoundGroup):
         return x2 - x1
 
     def charges(self) -> np.ndarray:
+        """
+        Return the atomic charges.
+
+        Returns:
+            np.ndarray: The charges.
+        """
         return self.universe.atoms.charges[self.indices]
 
     def dihedrals(self) -> np.ndarray:
+        """
+        Compute dihedral angles.
+
+        Raises:
+            InputError: If the number of atoms per compound differs from 4.
+
+        Returns:
+            np.ndarray: The dihedral angles.
+        """
         if self.shape[1] != 4:
             raise InputError(
                 "all compounds must consist of four atoms to compute a dihedral"
@@ -342,7 +435,19 @@ class CompoundArray(CompoundGroup):
         return np.arccos(cos)
 
     def masses(self) -> np.ndarray:
+        """
+        Return the atomic masses.
+
+        Returns:
+            np.ndarray: The masses.
+        """
         return self.universe.atoms.masses[self.indices]
 
     def positions(self) -> np.ndarray:
+        """
+        Return the atomic positions.
+
+        Returns:
+            np.ndarray: The positions.
+        """
         return self.universe.atoms.positions[self.indices]
