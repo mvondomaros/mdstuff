@@ -395,6 +395,27 @@ class CompoundArray(CompoundGroup):
         x1, x2 = self.universe.atoms.positions[self.indices.T]
         return x2 - x1
 
+    def centers_of_geometry(self) -> np.ndarray:
+        """
+        Compute the centers of geometry.
+
+        Returns:
+            np.ndarray: The centers of geometry.
+        """
+        x = self.universe.atoms.positions[self.indices]
+        return np.mean(x, axis=1)
+
+    def centers_of_mass(self) -> np.ndarray:
+        """
+        Compute the centers of geometry.
+
+        Returns:
+            np.ndarray: The centers of geometry.
+        """
+        x = self.universe.atoms.positions[self.indices]
+        m = self.universe.atoms.masses[self.indices]
+        return np.average(x, axis=1, weights=m)
+
     def charges(self) -> np.ndarray:
         """
         Return the atomic charges.
