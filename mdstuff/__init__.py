@@ -1,5 +1,6 @@
 import mdstuff.core
 import mdstuff.distributions
+import mdstuff.helpers
 import mdstuff.structure
 import mdstuff.transformations
 
