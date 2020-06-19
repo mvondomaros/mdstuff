@@ -428,7 +428,7 @@ class CompoundArray(CompoundGroup):
         """
         x = self.universe.atoms.positions[self.indices]
         m = self.universe.atoms.masses[self.indices]
-        return np.sum(x * m[:, :, None], axis=1) / np.sum(m, axis=1)
+        return np.sum(x * m[:, :, None], axis=1) / np.sum(m, axis=1)[:, None]
 
     def charges(self) -> np.ndarray:
         """
