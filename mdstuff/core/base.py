@@ -38,6 +38,7 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
         """
         # We're overwriting what happens ChainReader.__init__(), so we need to explicitly call the
         # grand-parent initializer.
+        # pylint: disable=bad-super-call
         super(MDAnalysis.coordinates.chain.ChainReader, self).__init__()
 
         # References to all readers and filenames.
@@ -47,7 +48,7 @@ class ContinuousDCDReader(MDAnalysis.coordinates.chain.ChainReader):
                 self.readers.append(
                     MDAnalysis.coordinates.DCD.DCDReader(filename=f, **kwargs)
                 )
-            except OSError as e:
+            except OSError:
                 raise InputError(f"could not read DCD file: {f}")
         self.filenames = np.array(filenames)
 
@@ -222,7 +223,9 @@ class Universe(MDAnalysis.Universe):
                     analysis.update()
             self.parallel_analyses = []
 
-    def select_compounds(self, *selection: str, group_by: str = "residues", **kwargs) -> CompoundGroup:
+    def select_compounds(
+        self, *selection: str, group_by: str = "residues", **kwargs
+    ) -> CompoundGroup:
         """
         Select compounds (groups of atoms).
 
@@ -276,7 +279,7 @@ class CompoundGroup:
         Args:
             universe (MDAnalysis.Universe): The universe.
             ag_list (List[MDAnalysis.core.groups.AtomGroup]): The atom groups containing each compound.
-        """        
+        """
         self.universe = universe
         self.compounds = ag_list
 
@@ -287,6 +290,15 @@ class CompoundGroup:
         return self.__class__(
             universe=self.universe, ag_list=self.compounds + other.compounds
         )
+
+    def centers_of_geometry(self) -> np.ndarray:
+        """
+        Compute the centers of geometry.
+
+        Returns:
+            np.ndarray: The centers of geometry.
+        """
+        return np.array([compound.center_of_geometry() for compound in self.compounds])
 
     def centers_of_mass(self) -> np.ndarray:
         """
@@ -456,6 +468,18 @@ class CompoundArray(CompoundGroup):
         # And sometimes there are overflows.
         np.minimum(cos, 1.0, out=cos)
         return np.arccos(cos)
+
+    def dipoles(self) -> np.ndarray:
+        """
+        Compute the dipoles.
+
+        Returns:
+            np.ndarray: The dipoles.
+        """
+        x = self.universe.atoms.positions[self.indices]
+        q = self.universe.atoms.charges[self.indices]
+        mu = np.sum(q[:, :, None] * x, axis=1)
+        return mu
 
     def masses(self) -> np.ndarray:
         """
