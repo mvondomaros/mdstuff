@@ -27,14 +27,14 @@ class MSD(SerialAnalysis):
         self.time = np.arange(corr_len) * universe.trajectory.dt * step
         self.msd = np.zeros_like(self.time)
 
-        for i, cg in enumerate(self.cg):
+        for i, cg in enumerate(self.cg.compounds):
             # Get the center of mass positions.
             r = np.array(
                 [
                     cg.center_of_mass()
                     for _ in tqdm.tqdm(
                         universe.trajectory[start:stop:step],
-                        desc=f"MSD loop {i}/{len(self.cg)}",
+                        desc=f"MSD loop {i}/{len(self.cg.compounds)}",
                     )
                 ]
             )
