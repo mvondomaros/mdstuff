@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 import abc
 
 from .base import Universe
@@ -6,7 +9,7 @@ from .base import Universe
 class Analysis(abc.ABC):
     """
     Base class for all analyses.
-    """    
+    """
 
     @abc.abstractmethod
     def save(self, filename: str):
@@ -15,7 +18,7 @@ class Analysis(abc.ABC):
 
         Args:
             filename (str): The file name.
-        """        
+        """
         pass
 
 
