@@ -1,7 +1,5 @@
 import abc
 
-from .base import Universe
-
 
 class Analysis(abc.ABC):
     """
