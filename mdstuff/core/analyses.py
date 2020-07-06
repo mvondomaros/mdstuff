@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-
 import abc
 
 from .base import Universe
@@ -41,7 +38,7 @@ class SerialAnalysis(Analysis):
     """
 
     @abc.abstractmethod
-    def run(self, universe: Universe):
+    def run(self, universe):
         """
         Run the analysis.
         """
