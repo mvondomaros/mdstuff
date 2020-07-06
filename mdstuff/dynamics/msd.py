@@ -41,7 +41,7 @@ class MSD(SerialAnalysis):
 
             for i in range(3):
                 self.msd += msd_fft(r[:, i], length=corr_len)
-                self.n += 1
+            self.n += 1
 
     def save(self, name: str):
         np.savez(
