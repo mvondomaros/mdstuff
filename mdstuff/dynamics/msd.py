@@ -8,10 +8,10 @@ from .helpers import msd_fft
 
 class MSD(SerialAnalysis):
     def __init__(
-        self, cg: CompoundGroup, n: int = 100, start=None, stop=None, step=None
+        self, cg: CompoundGroup, nsteps: int = 100, start=None, stop=None, step=None
     ):
         self.cg = cg
-        self.n = n
+        self.nsteps = nsteps
         self.start = start
         self.stop = stop
         self.step = step
@@ -23,7 +23,7 @@ class MSD(SerialAnalysis):
         start, stop, step = slice(self.start, self.stop, self.step).indices(
             len(universe.trajectory)
         )
-        corr_len = ((stop - start) // step) // self.n
+        corr_len = ((stop - start) // step) // self.nsteps
         self.time = np.arange(corr_len) * universe.trajectory.dt * step
         self.msd = np.zeros_like(self.time)
 
