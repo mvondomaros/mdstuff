@@ -1,52 +1,49 @@
-# import numpy as np
-# import tqdm
-# from MDAnalysis.core.groups import AtomGroup
-# from typing import Tuple
+import numpy as np
 
-# from .helpers import msd_fft
-# from ..core import OneTimeAnalysis
-# from ..core.errors import ParameterValueError
+from mdstuff.core import SerialAnalysis, CompoundGroup, Universe
+import tqdm
+
+from .helpers import msd_fft
 
 
-# class SingleParticleMSD(Analysis):
-#     def __init__(self, ag: AtomGroup, n: int = 100, start=None, stop=None, step=None):
-#         super().__init__(universe=ag.universe)
+class MSD(SerialAnalysis):
+    def __init__(
+        self, cg: CompoundGroup, n: int = 100, start=None, stop=None, step=None
+    ):
+        self.cg = cg
+        self.n = n
+        self.start = start
+        self.stop = stop
+        self.step = step
+        self.time = None
+        self.msd = None
+        self.n = 0
 
-#         self.start, self.stop, self.step = slice(start, stop, step).indices(
-#             len(self.universe.trajectory)
-#         )
+    def work(self, universe: Universe):
+        start, stop, step = slice(self.start, self.stop, self.step).indices(
+            len(universe.trajectory)
+        )
+        corr_len = ((stop - start) // step) // self.n
+        self.time = np.arange(corr_len) * universe.trajectory.dt * step
+        self.msd = np.zeros_like(self.time)
 
-#         self.corr_len = ((self.stop - self.start) // self.step) // n
-#         if self.corr_len <= 0:
-#             raise ParameterValueError(
-#                 name="n",
-#                 value=n,
-#                 allowed_values=f"an int, with 0 < n <= {(self.stop-self.start)//self.step}",
-#             )
+        for i, cg in enumerate(self.cg):
+            # Get the center of mass positions.
+            r = np.array(
+                [
+                    cg.center_of_mass()
+                    for _ in tqdm.tqdm(
+                        universe.trajectory[start:stop:step],
+                        desc=f"MSD loop {i}/{len(self.cg)}",
+                    )
+                ]
+            )
 
-#         self.ag = ag
-#         self.msd = None
-#         self.time = None
+            for i in range(3):
+                self.msd += msd_fft(r[:, i], length=corr_len)
+                self.n += 1
 
-#     def update(self):
-#         # Work is completely done in finalize().
-#         pass
-
-#     def finalize(self):
-#         # Get the center of mass positions.
-#         r = np.array(
-#             [
-#                 self.ag.center_of_mass()
-#                 for _ in tqdm.tqdm(
-#                     self.universe.trajectory[self.start : self.stop : self.step],
-#                     desc=f"MSD trajectory loop",
-#                 )
-#             ]
-#         )
-#         msds = [msd_fft(r[:, i], length=self.corr_len) for i in range(3)]
-
-#         self.msd = np.sum(msds, axis=0)
-#         self.time = np.arange(self.corr_len) * self.universe.trajectory.dt * self.step
-
-#     def get(self) -> Tuple[np.ndarray, np.ndarray]:
-#         return self.msd, self.time
+    def save(self, name: str):
+        np.savez(
+            name, time=self.time, msd=self.msd / self.n,
+        )

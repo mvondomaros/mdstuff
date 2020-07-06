@@ -1,3 +1,3 @@
-from .msd import SingleParticleMSD
+from .msd import MSD
 
-__all__ = ["SingleParticleMSD"]
+__all__ = ["MSD"]
