@@ -226,7 +226,7 @@ class Universe(MDAnalysis.Universe):
             self.parallel_analyses = []
         if len(self.serial_analyses) != 0:
             for analysis in self.serial_analyses:
-                    analysis.run()
+                    analysis.run(universe=self)
             self.serial_analyses = []
 
 

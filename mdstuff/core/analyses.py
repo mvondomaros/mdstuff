@@ -1,5 +1,7 @@
 import abc
 
+from .base import Universe
+
 
 class Analysis(abc.ABC):
     """
@@ -36,7 +38,7 @@ class SerialAnalysis(Analysis):
     """
 
     @abc.abstractmethod
-    def run(self):
+    def run(self, universe: Universe):
         """
         Run the analysis.
         """
