@@ -28,3 +28,16 @@ class ParallelAnalysis(Analysis):
         Update the analysis in each step.
         """
         pass
+
+
+class SerialAnalysis(Analysis):
+    """
+    Base class for analyses that can not run in parallel.
+    """
+
+    @abc.abstractmethod
+    def run(self):
+        """
+        Run the analysis.
+        """
+        pass

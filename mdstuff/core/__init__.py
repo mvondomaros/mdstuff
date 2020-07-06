@@ -1,4 +1,4 @@
-from .analyses import Analysis, ParallelAnalysis
+from .analyses import Analysis, ParallelAnalysis, SerialAnalysis
 from .base import CompoundArray, CompoundGroup, Universe
 from .errors import (
     AnalysisError,
@@ -12,6 +12,7 @@ __all__ = [
     # Imports from .analyses.
     "Analysis",
     "ParallelAnalysis",
+    "SerialAnalysis",
     # Imports from .errors.
     "AnalysisError",
     "MDStuffError",

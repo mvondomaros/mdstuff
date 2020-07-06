@@ -7,7 +7,7 @@ import numpy as np
 import tqdm
 
 from .analyses import Analysis
-from . import ParallelAnalysis
+from . import ParallelAnalysis, SerialAnalysis
 from .errors import UniverseError, ParameterValueError, InputError
 from ..transformations.transformations import Transformation
 
@@ -202,6 +202,8 @@ class Universe(MDAnalysis.Universe):
         for analysis in analyses:
             if isinstance(analysis, ParallelAnalysis):
                 self.parallel_analyses.append(analysis)
+            elif isinstance(analysis, SerialAnalysis):
+                self.serial_analyses.append(analysis)
 
     def run_analyses(self, start: int = None, stop: int = None, step: int = None):
         """
@@ -222,6 +224,11 @@ class Universe(MDAnalysis.Universe):
                 for analysis in self.parallel_analyses:
                     analysis.update()
             self.parallel_analyses = []
+        if len(self.serial_analyses) != 0:
+            for analysis in self.serial_analyses:
+                    analysis.run()
+            self.serial_analyses = []
+
 
     def select_compounds(
         self, *selection: str, group_by: str = "residues", **kwargs
