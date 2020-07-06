@@ -19,7 +19,7 @@ class MSD(SerialAnalysis):
         self.msd = None
         self.n = 0
 
-    def work(self, universe: Universe):
+    def run(self, universe: Universe):
         start, stop, step = slice(self.start, self.stop, self.step).indices(
             len(universe.trajectory)
         )
