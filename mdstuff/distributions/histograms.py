@@ -157,6 +157,7 @@ class Histogram(ParallelAnalysis):
             bin_centers=self.bins.centers,
             bin_edges=self.bins.edges,
             values=norm_counts,
+            nr_updates=self.nr_updates,
         )
 
 
@@ -265,4 +266,5 @@ class Histogram2D(ParallelAnalysis):
             y_bin_centers=self.y_bins.centers,
             y_bin_edges=self.y_bins.edges,
             values=norm_counts,
+            nr_updates=self.nr_updates,
         )
