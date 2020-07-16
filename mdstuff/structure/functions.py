@@ -7,31 +7,49 @@ from mdstuff.core import CompoundArray, CompoundGroup, ParameterValueError
 
 class Bonds:
     def __init__(
-        self, compounds: CompoundArray, distance: bool = False, orientation: int = None
+        self,
+        compounds: CompoundArray,
+        axis: int = None,
+        magnitude: bool = False,
+        orientation: bool = False,
     ):
         self.compounds = compounds
-        self.distance = distance
 
-        if distance and orientation is not None:
+        if axis not in [None, 0, 1, 2]:
+            raise ParameterValueError(
+                name="axis", value=axis, message="should be 0, 1, or 2"
+            )
+
+        if magnitude and orientation:
             raise ParameterValueError(
                 name="orientation",
                 value=orientation,
-                message="distance and orientation are mutually exclusive",
+                message="magnitude and orientation are mutually exclusive",
             )
-        if orientation is not None and not 0 <= orientation <= 2:
+
+        if orientation and axis is None:
             raise ParameterValueError(
-                name="orientation", value=orientation, message="must be 0, 1, or 2",
+                name="orientation",
+                value=orientation,
+                message="axis must be specified if orientation is requested",
             )
+
+        self.axis = axis
+        self.magnitude = magnitude
         self.orientation = orientation
 
     def __call__(self) -> np.ndarray:
         d = self.compounds.bonds()
-        if self.distance:
-            return np.linalg.norm(d, axis=1)
-        elif self.orientation is not None:
-            return d[:, self.orientation] / np.linalg.norm(d, axis=1)
+        if self.axis is None:
+            if self.magnitude:
+                return np.linalg.norm(d, axis=1)
+            else:
+                return d
         else:
-            return d
+            if self.orientation:
+                return d[:, self.axis] / np.linalg.norm(d, axis=1)
+            else:
+                return d[:, self.axis]
 
 
 class CenterOfMass:
