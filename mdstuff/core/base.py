@@ -226,9 +226,8 @@ class Universe(MDAnalysis.Universe):
             self.parallel_analyses = []
         if len(self.serial_analyses) != 0:
             for analysis in self.serial_analyses:
-                    analysis.run(universe=self)
+                analysis.run(universe=self)
             self.serial_analyses = []
-
 
     def select_compounds(
         self, *selection: str, group_by: str = "residues", **kwargs
@@ -462,19 +461,17 @@ class CompoundArray(CompoundGroup):
             )
 
         x1, x2, x3, x4 = self.universe.atoms.positions[self.indices.T]
-        a = x1 - x2
-        b = x4 - x3
-        c = x3 - x2
-        axc = np.cross(a, c)
-        bxc = np.cross(b, c)
-        axc_norm = np.linalg.norm(axc, axis=1)
-        bxc_norm = np.linalg.norm(bxc, axis=1)
-        cos = np.sum(axc * bxc, axis=1) / (axc_norm * bxc_norm)
-        # Sometimes there are underflows, because of numerical imprecision.
-        np.maximum(cos, -1.0, out=cos)
-        # And sometimes there are overflows.
-        np.minimum(cos, 1.0, out=cos)
-        return np.arccos(cos)
+        b1 = x2 - x1
+        b2 = x3 - x2
+        b3 = x4 - x3
+        n1 = np.cross(b1, b2)
+        n2 = np.cross(b2, b3)
+        n1 /= np.linalg.norm(n1, axis=1)
+        n2 /= np.linalg.norm(n2, axis=1)
+        m1 = np.cross(n1, b2)
+        x = np.sum(n1, n2, axis=1)
+        y = np.sum(m1, n2, axis=1)
+        return np.arctan2(y, x) * 180.0 / np.pi
 
     def dipoles(self) -> np.ndarray:
         """
