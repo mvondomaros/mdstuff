@@ -466,11 +466,11 @@ class CompoundArray(CompoundGroup):
         b3 = x4 - x3
         n1 = np.cross(b1, b2)
         n2 = np.cross(b2, b3)
-        n1 /= np.linalg.norm(n1, axis=1)
-        n2 /= np.linalg.norm(n2, axis=1)
+        n1 /= np.linalg.norm(n1, axis=1)[:, None]
+        n2 /= np.linalg.norm(n2, axis=1)[:, None]
         m1 = np.cross(n1, b2)
-        x = np.sum(n1, n2, axis=1)
-        y = np.sum(m1, n2, axis=1)
+        x = np.sum(n1 * n2, axis=1)
+        y = np.sum(m1 * n2, axis=1)
         return np.arctan2(y, x) * 180.0 / np.pi
 
     def dipoles(self) -> np.ndarray:
