@@ -468,7 +468,7 @@ class CompoundArray(CompoundGroup):
         n2 = np.cross(b2, b3)
         n1 /= np.linalg.norm(n1, axis=1)[:, None]
         n2 /= np.linalg.norm(n2, axis=1)[:, None]
-        m1 = np.cross(n1, b2)
+        m1 = np.cross(n1, b2 / np.linalg.norm(b2))
         x = np.sum(n1 * n2, axis=1)
         y = np.sum(m1 * n2, axis=1)
         return np.arctan2(y, x) * 180.0 / np.pi
